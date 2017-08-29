@@ -1,0 +1,103 @@
+  METHOD check_item_category.
+*&---------------------------------------------------------------------*
+*& Method check_item_category
+*&---------------------------------------------------------------------*
+*======================================================================*
+* Program Name    : ZCLBOM_UPLOAD_REDLINE                              *
+* Title           : Perform checks on item category                    *
+* Written By      : LeverX - LLittle                                   *
+* Creation Date   : 08.1.2017                                          *
+* Project         : Create BOM/Redline From Input File                 *
+* Transaction     : N/A                                                *
+*======================================================================*
+* P R O G R A M            D E S C R I P T I O N                       *
+*----------------------------------------------------------------------*
+* Check if excel line contains an item category, and perform additional*
+* checks if item category is X, Y, or Z                                *
+*======================================================================*
+* P R O G R A M            H I S T O R Y                               *
+* (Most recent on top)                                                 *
+*----------------------------------------------------------------------*
+* Date         Request #   Developer              Project or CR No.    *
+*----------------------------------------------------------------------*
+* 08/1/2017   ECDK980061   ZLLITTLE                           P15-002  *
+* Description                                                          *
+* Initial creation date                                                *
+*----------------------------------------------------------------------*
+*-----------------------------------------------------------------------
+*                  Definition of Structures
+*-----------------------------------------------------------------------
+    DATA: ls_itm_data LIKE LINE OF mt_bom_itm_data.
+
+*-----------------------------------------------------------------------
+*                  Definition of Variables
+*-----------------------------------------------------------------------
+    DATA: lv_bom_qty TYPE i.
+
+*=======================================================================
+*               Program Main Routine
+*=======================================================================
+* Check if item category field is blank
+    CLEAR gs_error_msg-error_msg.
+    IF is_excel_line-item_cat IS INITIAL.
+      MESSAGE i051(zmcbom_msgs) INTO gs_error_msg-error_msg.
+      APPEND gs_error_msg TO gt_error_msgs.
+      RETURN.
+    ENDIF.
+* Check ICT X, Y, and Z for components for BOM
+    CASE is_excel_line-item_cat.
+      WHEN ms_redline_itm_type-stock
+        OR ms_redline_itm_type-document
+        OR ms_redline_itm_type-text.
+        RETURN.
+      WHEN ms_redline_itm_type-ref_mat
+        OR ms_redline_itm_type-ref_doc.
+        READ TABLE mt_bom_itm_data WITH KEY parent_mid = is_excel_line-parent_mid
+                                            plant      = is_excel_line-plant
+                                            bom_usage  = is_excel_line-bom_usage
+                                            alt_bom    = is_excel_line-alt_bom
+                                            cmp_mid    = is_excel_line-cmp_mid
+                                       INTO ls_itm_data.
+        IF sy-subrc = 0.
+          "Compare quantities - if same return warning else error
+          lv_bom_qty = ls_itm_data-cmp_qty.
+          IF lv_bom_qty = is_excel_line-cmp_qty
+            AND ls_itm_data-meins = is_excel_line-cmp_uom.
+            gs_error_msg-error_type = gc_warning.
+            MESSAGE i054(zmcbom_msgs) INTO gs_error_msg-error_msg.
+          ELSE.
+            MESSAGE i055(zmcbom_msgs) INTO gs_error_msg-error_msg.
+          ENDIF.
+        ELSE.
+          MESSAGE i056(zmcbom_msgs) INTO gs_error_msg-error_msg.
+        ENDIF.
+      WHEN ms_redline_itm_type-ref_text.
+        READ TABLE mt_bom_itm_data WITH KEY parent_mid = is_excel_line-parent_mid
+                                            plant      = is_excel_line-plant
+                                            bom_usage  = is_excel_line-bom_usage
+                                            alt_bom    = is_excel_line-alt_bom
+                                            potx1 = is_excel_line-text1
+                                            potx2 = is_excel_line-text2
+                                       INTO ls_itm_data.
+        IF sy-subrc = 0.
+          lv_bom_qty = ls_itm_data-cmp_qty.
+          IF lv_bom_qty = is_excel_line-cmp_qty
+            AND ls_itm_data-meins = is_excel_line-cmp_uom
+            AND ls_itm_data-potx1 = is_excel_line-text1
+            AND ls_itm_data-potx2 = is_excel_line-text2.
+            gs_error_msg-error_type = gc_warning.
+            MESSAGE i054(zmcbom_msgs) INTO gs_error_msg-error_msg.
+          ELSE.
+            MESSAGE i055(zmcbom_msgs) INTO gs_error_msg-error_msg.
+          ENDIF.
+        ELSE.
+          MESSAGE i056(zmcbom_msgs) INTO gs_error_msg-error_msg.
+        ENDIF.
+* Perform additional checks
+      WHEN OTHERS.
+        MESSAGE i052(zmcbom_msgs) INTO gs_error_msg-error_msg.
+    ENDCASE.
+    APPEND gs_error_msg TO gt_error_msgs.
+* Set error message type back to E incase Warning was triggers
+    gs_error_msg-error_type = gc_error.
+  ENDMETHOD.
