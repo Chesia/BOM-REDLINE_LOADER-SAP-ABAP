@@ -1,0 +1,107 @@
+  METHOD split_line.
+*&---------------------------------------------------------------------*
+*& Method split_line
+*&---------------------------------------------------------------------*
+*======================================================================*
+* Program Name    : ZCLBOM_UPLOAD_REDLINE                              *
+* Title           : Split file line into useable structured data       *
+* Written By      : LeverX - LLittle                                   *
+* Creation Date   : 08.1.2017                                         *
+* Project         : Create BOM/Redline From Input File                 *
+* Transaction     : N/A                                                *
+*======================================================================*
+* P R O G R A M            D E S C R I P T I O N                       *
+*----------------------------------------------------------------------*
+* Split the file line into a piece of structured data                  *
+*======================================================================*
+* P R O G R A M            H I S T O R Y                               *
+* (Most recent on top)                                                 *
+*----------------------------------------------------------------------*
+* Date         Request #   Developer              Project or CR No.    *
+*----------------------------------------------------------------------*
+* 08/1/2017   ECDK980061 LeverX - LLITTLE                     P15-002  *
+* Description                                                          *
+* Initial creation date                                                *
+*----------------------------------------------------------------------*
+    SPLIT is_file_line AT '||' INTO   "Excel File headers - Index
+      es_node_data-parent_mid   "Parent_MID - 1
+      es_node_data-plant        "Plant - 2
+      es_node_data-alt_bom      "ALT - 3
+      es_node_data-bom_usage    "Usage - 4
+      es_node_data-hdr_qty      "HDR_QTY - 5
+      es_node_data-hdr_uom      "HDR_UOM - 6
+      es_node_data-item         "Item (number) - 7
+      es_node_data-item_cat     "Item_cat - 8
+      es_node_data-cmp_mid      "CMP_MID - 9
+      es_node_data-cmp_qty      "CMP_QTY - 10
+      es_node_data-cmp_uom      "CMP_UOM - 11
+      es_node_data-doknr        "Document - 12
+      es_node_data-dokar        "DOC Type - 13
+      es_node_data-doktl        "Doc Part - 14
+      es_node_data-dokvr        "Doc Version - 15
+      es_node_data-text1        "Text 1 - 16
+      es_node_data-text2        "Text 2 - 17
+      es_node_data-sort_str     "Sort String - 18
+      es_node_data-red_name     "Name (Redline Name) - 19
+      es_node_data-hdr_desc     "HRD_Description - 20
+      es_node_data-cmp_rnote    "CMP_RNOTE - 21
+      es_node_data-pic_user.    "PIC - 22
+    TRANSLATE es_node_data-parent_mid TO UPPER CASE.
+    TRANSLATE es_node_data-plant TO UPPER CASE.
+    TRANSLATE es_node_data-hdr_uom TO UPPER CASE.
+    TRANSLATE es_node_data-item_cat TO UPPER CASE.
+    TRANSLATE es_node_data-cmp_mid TO UPPER CASE.
+    TRANSLATE es_node_data-cmp_uom TO UPPER CASE.
+    TRANSLATE es_node_data-red_name TO UPPER CASE.
+    TRANSLATE es_node_data-pic_user TO UPPER CASE.
+    TRANSLATE es_node_data-doknr TO UPPER CASE.
+    TRANSLATE es_node_data-dokar TO UPPER CASE.
+    TRANSLATE es_node_data-dokvr TO UPPER CASE.
+    TRANSLATE es_node_data-doktl TO UPPER CASE.
+
+* Convert to internal number
+* parent_mid
+    CALL FUNCTION 'CONVERSION_EXIT_MATN1_INPUT'
+      EXPORTING
+        input  = es_node_data-parent_mid
+      IMPORTING
+        output = es_node_data-parent_mid.
+* cmp_mid
+    CALL FUNCTION 'CONVERSION_EXIT_MATN1_INPUT'
+      EXPORTING
+        input  = es_node_data-cmp_mid
+      IMPORTING
+        output = es_node_data-cmp_mid.
+* alt_bom
+    CALL FUNCTION 'CONVERSION_EXIT_ALPHA_INPUT'
+      EXPORTING
+        input  = es_node_data-plant
+      IMPORTING
+        output = es_node_data-plant.
+* plant
+    CALL FUNCTION 'CONVERSION_EXIT_ALPHA_INPUT'
+      EXPORTING
+        input  = es_node_data-alt_bom
+      IMPORTING
+        output = es_node_data-alt_bom.
+* doknr
+    CALL FUNCTION 'CONVERSION_EXIT_ALPHA_INPUT'
+      EXPORTING
+        input  = es_node_data-doknr
+      IMPORTING
+        output = es_node_data-doknr.
+* doktl
+    CALL FUNCTION 'CONVERSION_EXIT_ALPHA_INPUT'
+      EXPORTING
+        input  = es_node_data-doktl
+      IMPORTING
+        output = es_node_data-doktl.
+* dokvr
+    CALL FUNCTION 'CONVERSION_EXIT_ALPHA_INPUT'
+      EXPORTING
+        input  = es_node_data-dokvr
+      IMPORTING
+        output = es_node_data-dokvr.
+    "Remove any extra pipes "|" from pic_user
+    REPLACE ALL OCCURRENCES OF '|' IN es_node_data-pic_user WITH ``.
+ENDMETHOD.
