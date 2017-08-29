@@ -1,0 +1,42 @@
+  METHOD set_result_fields.
+*&---------------------------------------------------------------------*
+*& Method Set Result Fields
+*&---------------------------------------------------------------------*
+*======================================================================*
+* Program Name    : ZCLBOM_UPLOAD_REDLINE                              *
+* Title           : Set Result table output fields                     *
+* Written By      : LeverX - LLittle                                   *
+* Creation Date   : 08.1.2017                                          *
+* Project         : Create BOM/Redline From Input File                 *
+* Transaction     : N/A                                                *
+*======================================================================*
+* P R O G R A M            D E S C R I P T I O N                       *
+*----------------------------------------------------------------------*
+* Sets alt bom, bom usage, parent mid, and plant of final output table *
+*======================================================================*
+* P R O G R A M            H I S T O R Y                               *
+* (Most recent on top)                                                 *
+*----------------------------------------------------------------------*
+* Date         Request #   Developer              Project or CR No.    *
+*----------------------------------------------------------------------*
+* 08/1/2017   ECDK980061   ZLLITTLE                           P15-002  *
+* Description                                                          *
+* Initial creation date                                                *
+*----------------------------------------------------------------------*
+*-----------------------------------------------------------------------
+*                  Definition of Field Symbols
+*-----------------------------------------------------------------------
+    FIELD-SYMBOLS: <lfs_excel_line>   LIKE LINE OF it_excel_file.
+
+*=======================================================================
+*               Program Main Routine
+*=======================================================================
+    "Set result table fields
+    READ TABLE it_excel_file ASSIGNING <lfs_excel_line> WITH KEY parent_mid = mv_parent.
+    IF sy-subrc = 0.
+      gs_error_msg-bom_alt = <lfs_excel_line>-alt_bom.
+      gs_error_msg-bom_usage = <lfs_excel_line>-bom_usage.
+      gs_error_msg-parent_mid = <lfs_excel_line>-parent_mid.
+      gs_error_msg-plant      = <lfs_excel_line>-plant.
+    ENDIF.
+  ENDMETHOD.
