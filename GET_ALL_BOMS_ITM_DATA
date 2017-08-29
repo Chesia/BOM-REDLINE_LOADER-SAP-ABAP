@@ -1,0 +1,99 @@
+  METHOD get_all_boms_itm_data.
+*&---------------------------------------------------------------------*
+*& Method get_all_boms_itm_data
+*&---------------------------------------------------------------------*
+*======================================================================*
+* Program Name    : ZCLBOM_UPLOAD_REDLINE                              *
+* Title           : Gets all BOM items based on change number          *
+* Written By      : LeverX - LLittle                                   *
+* Creation Date   : 08.1.2017                                          *
+* Project         : Create BOM/Redline From Input File                 *
+* Transaction     : N/A                                                *
+*======================================================================*
+* P R O G R A M            D E S C R I P T I O N                       *
+*----------------------------------------------------------------------*
+* Get BOM line items based on the change number user is using          *
+*======================================================================*
+* P R O G R A M            H I S T O R Y                               *
+* (Most recent on top)                                                 *
+*----------------------------------------------------------------------*
+* Date         Request #   Developer              Project or CR No.    *
+*----------------------------------------------------------------------*
+* 08/1/2017   ECDK980061   ZLLITTLE                           P15-002  *
+* Description                                                          *
+* Initial creation date                                                *
+*----------------------------------------------------------------------*
+*-----------------------------------------------------------------------
+*                  Definition of Tables
+*-----------------------------------------------------------------------
+    DATA: lt_bom_data TYPE TABLE OF capp_bom,
+          lt_itm_data TYPE TABLE OF capp_itm.
+
+*-----------------------------------------------------------------------
+*                  Definition of Structures
+*-----------------------------------------------------------------------
+    DATA: l_bom_item LIKE LINE OF mt_bom_itm_data,
+          l_mkal     TYPE mkal.
+
+*-----------------------------------------------------------------------
+*                  Definition of Field Symbols
+*-----------------------------------------------------------------------
+    FIELD-SYMBOLS: <lfs_excel_line> LIKE LINE OF it_excel_file,
+                   <lfs_itm_data>   LIKE LINE OF lt_itm_data.
+
+*=======================================================================
+*               Program Main Routine
+*=======================================================================
+    LOOP AT it_excel_file ASSIGNING <lfs_excel_line>.
+      CLEAR: lt_bom_data, lt_itm_data.
+      IF mv_parent = <lfs_excel_line>-parent_mid.
+        CONTINUE.
+      ENDIF.
+      mv_parent = <lfs_excel_line>-parent_mid.
+      MOVE-CORRESPONDING <lfs_excel_line> TO l_bom_item.
+      l_mkal-matnr = <lfs_excel_line>-parent_mid.
+      l_mkal-stlal = <lfs_excel_line>-alt_bom.
+      l_mkal-werks = <lfs_excel_line>-plant.
+      l_mkal-stlan = <lfs_excel_line>-bom_usage.
+
+      CALL FUNCTION 'CABM_READ_BOM'
+        EXPORTING
+          i_matnr         = l_mkal-matnr
+          i_werks         = l_mkal-werks
+          i_stlal         = l_mkal-stlal
+          i_stlan         = l_mkal-stlan
+        TABLES
+          exp_bom_data    = lt_bom_data
+          exp_itm_data    = lt_itm_data
+        EXCEPTIONS
+          no_record_found = 1
+          OTHERS          = 2.
+      IF sy-subrc <> 0.
+        "Error - BOM DNE
+      ENDIF.
+      "Grab BOM items
+      LOOP AT lt_itm_data ASSIGNING <lfs_itm_data> WHERE aennr = g_mbom_hdata-change_no.
+        l_bom_item-parent_mid = l_mkal-matnr.
+        l_bom_item-plant = l_mkal-werks.
+        l_bom_item-alt_bom = <lfs_itm_data>-stlal.
+        l_bom_item-bom_usage = l_mkal-stlan.
+        l_bom_item-cmp_mid = <lfs_itm_data>-idnrk.
+        l_bom_item-cmp_qty = <lfs_itm_data>-menge.
+        l_bom_item-valid_from = <lfs_itm_data>-datuv.
+        l_bom_item-aennr = <lfs_itm_data>-aennr.
+        l_bom_item-postp = <lfs_itm_data>-postp.
+        l_bom_item-posnr = <lfs_itm_data>-posnr.
+        l_bom_item-dokar = <lfs_itm_data>-dokar.
+        l_bom_item-doknr = <lfs_itm_data>-doknr.
+        l_bom_item-dokvr = <lfs_itm_data>-dokvr.
+        l_bom_item-doktl = <lfs_itm_data>-doktl.
+        l_bom_item-meins = <lfs_itm_data>-meins.
+        l_bom_item-potx1 = <lfs_itm_data>-potx1.
+        l_bom_item-potx2 = <lfs_itm_data>-potx2.
+        l_bom_item-stlkn = <lfs_itm_data>-stlkn.
+        l_bom_item-stvkn = <lfs_itm_data>-stvkn.
+        l_bom_item-stpoz = <lfs_itm_data>-stpoz.
+        APPEND l_bom_item TO mt_bom_itm_data.
+      ENDLOOP.
+    ENDLOOP.
+  ENDMETHOD.
