@@ -1,0 +1,147 @@
+  METHOD get_tab_from_excel_file.
+*&---------------------------------------------------------------------*
+*& Method get_tab_from_excel_file
+*&---------------------------------------------------------------------*
+*======================================================================*
+* Program Name    : ZCLBOM_UPLOAD_REDLINE                              *
+* Title           : Load data from excel file to local table(s)        *
+* Written By      : LeverX - LLittle                                   *
+* Creation Date   : 08.01.2017                                         *
+* Project         : Create BOM/Redline From Input File                 *
+* Transaction     : N/A                                                *
+*======================================================================*
+* P R O G R A M            D E S C R I P T I O N                       *
+*----------------------------------------------------------------------*
+* Turn excel file into an internal table                               *
+*                                                                      *
+*======================================================================*
+* P R O G R A M            H I S T O R Y                               *
+* (Most recent on top)                                                 *
+*----------------------------------------------------------------------*
+* Date         Request #   Developer              Project or CR No.    *
+*----------------------------------------------------------------------*
+* 08/1/2017   ECDK980061   ZLLITTLE                           P15-002  *
+* Description                                                          *
+* Initial creation date                                                *
+*----------------------------------------------------------------------*
+*-----------------------------------------------------------------------
+*                  Definition of Types used
+*-----------------------------------------------------------------------
+    TYPES:
+      BEGIN OF element_file_info,
+        filename  TYPE string,
+        file_data TYPE xstring,
+        file_type TYPE string,
+      END OF element_file_info.
+
+*-----------------------------------------------------------------------
+*                  Definition of Tables
+*-----------------------------------------------------------------------
+    DATA: lt_worksheets  TYPE STANDARD TABLE OF string.
+
+*-----------------------------------------------------------------------
+*                  Definition of Objects
+*-----------------------------------------------------------------------
+    DATA: lo_excel      TYPE REF TO cl_fdt_xl_spreadsheet,
+          lo_excel_core TYPE REF TO cx_fdt_excel_core,
+          lo_data       TYPE REF TO data.
+
+*-----------------------------------------------------------------------
+*                  Definition of Variables
+*-----------------------------------------------------------------------
+    DATA: lv_name   TYPE string,
+          lv_string TYPE string,
+          lv_msg    TYPE string,
+          lv_flag   TYPE boolean.
+
+*-----------------------------------------------------------------------
+*                  Definition of Field Symbols
+*-----------------------------------------------------------------------
+* Field symbols declarations
+    FIELD-SYMBOLS:  <lfs_table>     TYPE table,
+                    <lfs_data>      TYPE any,
+                    <lfs_comp>      TYPE any,
+                    <lfs_file_info> TYPE element_file_info.
+
+*=======================================================================
+*               Program Main Routine
+*=======================================================================
+    ASSIGN ir_upload_file->* TO <lfs_file_info>.
+
+    TRY.
+*     Create object of class to read .xlsx file contents
+        CREATE OBJECT lo_excel
+          EXPORTING
+            document_name = <lfs_file_info>-filename
+            xdocument     = <lfs_file_info>-file_data.
+
+*     ADD in error message handling here
+      CATCH cx_fdt_excel_core INTO lo_excel_core.
+        CLEAR lv_msg.
+
+*     Call method to get error message text
+        CALL METHOD lo_excel_core->if_message~get_text
+          RECEIVING
+            result = lv_msg.
+*   Display error message returned in lv_msg - Needs to be added
+        RETURN.
+    ENDTRY.
+
+* Call method to get list of worksheets in the .xlsx file
+    lo_excel->if_fdt_doc_spreadsheet~get_worksheet_names(
+        IMPORTING
+          worksheet_names = lt_worksheets ).
+
+* Condition to check whether .xlsx file has any active worksheets
+    IF lt_worksheets IS NOT INITIAL.
+*   Read active worksheet
+      READ TABLE lt_worksheets INDEX 1 INTO lv_name.
+    ELSE.
+*<< Display error message >>
+      RETURN.
+    ENDIF.
+
+* Get reference of .xlsx file contents in the active worksheet
+    lo_data = lo_excel->if_fdt_doc_spreadsheet~get_itab_from_worksheet( lv_name ).
+
+* Fetch all records in the active worksheet
+    ASSIGN lo_data->* TO <lfs_table>.
+
+* Prepare exporting table with .xlsx file contents
+    IF <lfs_table> IS NOT ASSIGNED.
+      "No data, display error message
+      MESSAGE i008(zmcbom_msgs) INTO gs_error_msg-error_msg.
+      gs_error_msg-error_type = gc_error.
+      APPEND gs_error_msg TO gt_error_msgs.
+      RETURN.
+    ENDIF.
+
+* Loop dynamic table to prepare final table contents to pass in exporting parameter
+    LOOP AT <lfs_table> ASSIGNING <lfs_data>.
+*   Initialize flag
+      lv_flag = abap_true.
+      WHILE lv_flag = abap_true.
+*     Read columnwise entries
+        ASSIGN COMPONENT sy-index OF STRUCTURE <lfs_data> TO <lfs_comp>.
+        IF <lfs_comp> IS NOT ASSIGNED.
+          lv_flag = abap_false.
+*       Exit the loop when a row ends
+          EXIT.
+        ELSE.
+*       Concatenate each cell data in a row into string seperated by '||'
+          CONCATENATE lv_string <lfs_comp> INTO lv_string SEPARATED BY '||'.
+        ENDIF.
+*     Unassign field symbol
+        UNASSIGN <lfs_comp>.
+      ENDWHILE.
+
+*   Shift final string having a row left by 2 places to remove leading '||'
+      SHIFT lv_string LEFT BY 2 PLACES.
+
+*   Append prepared row data to exporting parameter
+      APPEND lv_string TO et_contents.
+
+*   Clear variable having row data
+      CLEAR lv_string.
+    ENDLOOP.
+  ENDMETHOD.
