@@ -1,0 +1,199 @@
+  METHOD set_redline_fields.
+*&---------------------------------------------------------------------*
+*& Method set_redline_fields
+*&---------------------------------------------------------------------*
+*======================================================================*
+* Program Name    : ZCLBOM_UPLOAD_REDLINE                              *
+* Title           : Set redline data                                   *
+* Written By      : LeverX - LLittle                                   *
+* Creation Date   : 08.01.2017                                         *
+* Project         : Create BOM/Redline From Input File                 *
+* Transaction     : N/A                                                *
+*======================================================================*
+* P R O G R A M            D E S C R I P T I O N                       *
+*----------------------------------------------------------------------*
+* Set redlining or header data categories and values                   *
+*======================================================================*
+* P R O G R A M            H I S T O R Y                               *
+* (Most recent on top)                                                 *
+*----------------------------------------------------------------------*
+* Date         Request #   Developer              Project or CR No.    *
+*----------------------------------------------------------------------*
+* 08/1/2017   ECDK980061   ZLLITTLE                           P15-002  *
+* Description                                                          *
+* Initial creation date                                                *
+*----------------------------------------------------------------------*
+*-----------------------------------------------------------------------
+*                  Definition of Tables
+*-----------------------------------------------------------------------
+    DATA: lt_lines TYPE TABLE OF tline.
+*-----------------------------------------------------------------------
+*                  Definition of Structures
+*-----------------------------------------------------------------------
+    DATA: l_node_data    TYPE /plmb/s_redline_node_details,
+          l_fields       TYPE /plmb/s_redline_fields,
+          l_rnote_header TYPE thead,
+          l_lines        LIKE LINE OF lt_lines,
+          l_dir_data     TYPE bapi_doc_draw2,
+          l_return       TYPE bapiret2.
+
+*-----------------------------------------------------------------------
+*                  Definition of Variables
+*-----------------------------------------------------------------------
+    DATA: lv_matnr    TYPE makt-matnr,
+          lv_maktx    TYPE makt-maktx,
+          lv_item_num TYPE n LENGTH 4,
+          lv_message  TYPE string.
+
+*=======================================================================
+*               Program Main Routine
+*=======================================================================
+    "Set Node type to N - New
+    l_node_data-redline_type = ms_redline_node_type-new.
+    "Set node Key
+    create_redline_node_key(
+      EXPORTING
+        is_excel_line   = is_excel_line " Header and Redline Node data
+        iv_counter      = iv_counter    " Internal Counter
+      IMPORTING
+        ev_complete_key =  l_node_data-node_key ).
+*--------------------------------------------------------------------*
+*Set Node Parameters
+*--------------------------------------------------------------------*
+    "Component Description
+    CASE is_excel_line-item_cat.
+      WHEN 'T'. "Text items
+        "No extra work for category T
+      WHEN 'D'. "Document items
+        "Document description
+        CALL FUNCTION 'BAPI_DOCUMENT_GETDETAIL2'
+          EXPORTING
+            documenttype    = is_excel_line-dokar
+            documentnumber  = is_excel_line-doknr
+            documentpart    = is_excel_line-doktl
+            documentversion = is_excel_line-dokvr
+          IMPORTING
+            documentdata    = l_dir_data
+            return          = l_return.
+*        IF rs_error_msg IS NOT INITIAL.
+*          lv_message = rs_error_msg-message.
+*          CLEAR rs_error_msg.
+*          rs_error_msg-number = '018'.
+*          rs_error_msg-message_v1 = gv_excel_line.
+*          rs_error_msg-message_v2 = lv_message.
+*          RETURN.
+*        ENDIF.
+        l_fields-fieldname = 'COMPONENT_DESCR'.
+        l_fields-new_value = l_dir_data-description.
+        INSERT l_fields INTO TABLE l_node_data-redline_data.
+        "Document Number
+        l_fields-fieldname = 'DOCUMENT_NUMBER'.
+        l_fields-new_value = is_excel_line-doknr.
+        INSERT l_fields INTO TABLE l_node_data-redline_data.
+        "Document Type
+        l_fields-fieldname = 'DOCUMENT_TYPE'.
+        l_fields-new_value = is_excel_line-dokar.
+        INSERT l_fields INTO TABLE l_node_data-redline_data.
+        "Document part number
+        l_fields-fieldname = 'DOCUMENT_PART'.
+        l_fields-new_value = is_excel_line-doktl.
+        INSERT l_fields INTO TABLE l_node_data-redline_data.
+        "Document version
+        l_fields-fieldname = 'DOCUMENT_VERSION'.
+        l_fields-new_value = is_excel_line-dokvr.
+        INSERT l_fields INTO TABLE l_node_data-redline_data.
+
+      WHEN 'L'. "stock items
+        "Material Description
+        IF is_excel_line-cmp_mid IS NOT INITIAL.
+          l_fields-fieldname = 'COMPONENT_DESCR'.
+          lv_matnr = is_excel_line-cmp_mid.
+          "Get Description
+          CALL FUNCTION 'EAN150_MAKT_READ_DESCRIPTION'
+            EXPORTING
+              i_matnr         = lv_matnr
+              i_langu         = sy-langu
+            IMPORTING
+              e_maktx         = lv_maktx
+            EXCEPTIONS
+              wrong_parameter = 1.
+          l_fields-new_value = lv_maktx.
+          INSERT l_fields INTO TABLE l_node_data-redline_data.
+        ENDIF.
+        "Component Item Material
+        l_fields-fieldname = 'ITEM_MATERIAL'.
+        l_fields-new_value = lv_matnr.
+        INSERT l_fields INTO TABLE l_node_data-redline_data.
+
+        l_fields-fieldname = 'SUB_ITEM'.
+        l_fields-new_value = ''.
+        INSERT l_fields INTO TABLE l_node_data-redline_data.
+    ENDCASE.
+
+    "These nodes are set for all item category types
+    "Component Item Number
+    lv_item_num = is_excel_line-item.
+    l_fields-fieldname = 'ITEM_NO'.
+    l_fields-new_value = lv_item_num.
+    INSERT l_fields INTO TABLE l_node_data-redline_data.
+    "Redline item category
+    l_fields-fieldname = 'ITEM_CAT'.
+    l_fields-new_value = is_excel_line-item_cat.
+    INSERT l_fields INTO TABLE l_node_data-redline_data.
+    "Component Quantity
+    l_fields-fieldname = 'COMP_QTY'.
+    l_fields-new_value = is_excel_line-cmp_qty.
+    INSERT l_fields INTO TABLE l_node_data-redline_data.
+    "Component Unit
+    l_fields-fieldname = 'COMP_UNIT'.
+    l_fields-new_value = is_excel_line-cmp_uom.
+    INSERT l_fields INTO TABLE l_node_data-redline_data.
+    "Component Item Text 1
+    l_fields-fieldname = 'ITEM_TEXT1'.
+    l_fields-new_value = is_excel_line-text1.
+    INSERT l_fields INTO TABLE l_node_data-redline_data.
+    "Component Item text 2
+    l_fields-fieldname = 'ITEM_TEXT2'.
+    l_fields-new_value = is_excel_line-text2.
+    INSERT l_fields INTO TABLE l_node_data-redline_data.
+    "Sort String
+    l_fields-fieldname = 'SORT_STRING'.
+    l_fields-new_value = is_excel_line-sort_str.
+    INSERT l_fields INTO TABLE l_node_data-redline_data.
+    "Set redline note
+    IF is_excel_line-cmp_rnote IS NOT INITIAL.
+      l_lines-tdline = is_excel_line-cmp_rnote.
+      l_lines-tdformat = '*'.
+      APPEND l_lines TO lt_lines.
+
+      l_rnote_header-tdname = l_node_data-node_key.
+      CONDENSE l_rnote_header-tdname NO-GAPS.
+      CONCATENATE is_excel_line-red_name l_rnote_header-tdname INTO l_rnote_header-tdname.
+      l_rnote_header-tdobject = '/PLMB/RITM'.
+      l_rnote_header-tdid   = 'RITM'.
+      l_rnote_header-tdspras = sy-langu.
+      l_rnote_header-tdmacode1 = 'SAPMHTTP'.
+      l_rnote_header-tdversion = 1.
+
+      CALL FUNCTION 'SAVE_TEXT'
+        EXPORTING
+          header          = l_rnote_header
+          savemode_direct = 'X'
+        TABLES
+          lines           = lt_lines
+        EXCEPTIONS
+          id              = 1
+          language        = 2
+          name            = 3
+          object          = 4
+          OTHERS          = 5.
+*      IF sy-subrc <> 0.
+*        rs_error_msg-number = '003'.
+*        rs_error_msg-message_v1 = gv_excel_line.
+*        RETURN.
+*      ENDIF.
+    ENDIF.
+
+    "Add redline node to table
+    INSERT l_node_data INTO TABLE cs_redline_values-node_data.
+    CLEAR l_node_data.
