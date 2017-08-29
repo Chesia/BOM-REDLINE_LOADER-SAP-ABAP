@@ -1,0 +1,98 @@
+  METHOD create_redline_node_key.
+*&---------------------------------------------------------------------*
+*& Method create_redline_node_key
+*&---------------------------------------------------------------------*
+*======================================================================*
+* Program Name    : ZCLBOM_UPLOAD_REDLINE                              *
+* Title           : Create Redline node key                            *
+* Written By      : LeverX - ZLittle                                   *
+* Creation Date   : 08.1.2017                                          *
+* Project         : Create BOM/Redline From Input File                 *
+* Transaction     : N/A                                                *
+*======================================================================*
+* P R O G R A M            D E S C R I P T I O N                       *
+*----------------------------------------------------------------------*
+* Create Redline node key                                              *
+*======================================================================*
+* P R O G R A M            H I S T O R Y                               *
+* (Most recent on top)                                                 *
+*----------------------------------------------------------------------*
+* Date         Request #   Developer              Project or CR No.    *
+*----------------------------------------------------------------------*
+* 08/1/2017   ECDK980061   ZLLITTLE                           P15-002  *
+* Description                                                          *
+* Initial creation date                                                *
+*----------------------------------------------------------------------*
+*-----------------------------------------------------------------------
+*                  Definition of Structures
+*-----------------------------------------------------------------------
+    DATA: l_item_data        TYPE /plmb/s_mbom_item_sp,
+          l_item_result_data TYPE /plmi/s_mbom_item.
+
+*-----------------------------------------------------------------------
+*                  Definition of Objects
+*-----------------------------------------------------------------------
+    FIELD-SYMBOLS: <lfs_bom_itm_data> LIKE LINE OF mt_bom_itm_data.
+
+*=======================================================================
+*               Program Main Routine
+*=======================================================================
+    IF iv_counter IS NOT INITIAL.
+* Create key for redline node of type N(new)
+      l_item_data-material = is_excel_line-parent_mid.
+      l_item_data-plant = is_excel_line-plant.
+      l_item_data-bom_usage = is_excel_line-bom_usage.
+      l_item_data-item_counter = iv_counter.
+      l_item_data-alternative_bom = is_excel_line-alt_bom.
+
+      CONCATENATE l_item_data-material
+                  l_item_data-plant
+                  l_item_data-bom_usage
+                  l_item_data-alternative_bom
+                  l_item_data-inher_node
+                  l_item_data-item_node
+                  l_item_data-item_counter INTO ev_complete_key RESPECTING BLANKS.
+    ELSE.
+* Create Key for type C(change) or D (Delete)
+      CASE is_excel_line-item_cat.
+        WHEN ms_redline_itm_type-stock
+          OR ms_redline_itm_type-ref_mat
+          OR ms_redline_itm_type-ref_doc.
+          READ TABLE mt_bom_itm_data ASSIGNING <lfs_bom_itm_data>
+                WITH KEY parent_mid = is_excel_line-parent_mid
+                         cmp_mid    = is_excel_line-cmp_mid
+                         postp      = is_excel_line-item_cat.
+        WHEN ms_redline_itm_type-document.
+          READ TABLE mt_bom_itm_data ASSIGNING <lfs_bom_itm_data>
+                WITH KEY dokar = is_excel_line-dokar
+                         doknr = is_excel_line-doknr
+                         dokvr = is_excel_line-dokvr
+                         doktl = is_excel_line-doktl.
+        WHEN OTHERS.
+          READ TABLE mt_bom_itm_data ASSIGNING <lfs_bom_itm_data>
+                WITH KEY parent_mid = is_excel_line-parent_mid
+                         potx1      = is_excel_line-text1
+                         potx2      = is_excel_line-text2
+                         postp      = is_excel_line-item_cat.
+      ENDCASE.
+      IF sy-subrc = 0.
+        l_item_result_data-alternative_bom = <lfs_bom_itm_data>-alt_bom.
+        l_item_result_data-material = <lfs_bom_itm_data>-parent_mid.
+        l_item_result_data-plant = <lfs_bom_itm_data>-plant.
+        l_item_result_data-bom_usage = <lfs_bom_itm_data>-bom_usage.
+        l_item_result_data-inher_node = <lfs_bom_itm_data>-stvkn.
+        l_item_result_data-item_node = <lfs_bom_itm_data>-stlkn.
+        l_item_result_data-item_counter = <lfs_bom_itm_data>-stpoz.
+
+        CONCATENATE l_item_result_data-material
+                    l_item_result_data-plant
+                    l_item_result_data-bom_usage
+                    l_item_result_data-alternative_bom
+                    l_item_result_data-inher_node
+                    l_item_result_data-item_node
+                    l_item_result_data-item_counter INTO ev_complete_key RESPECTING BLANKS.
+      ELSE.
+        "ERROR
+      ENDIF.
+    ENDIF.
+  ENDMETHOD.
