@@ -1,0 +1,167 @@
+  METHOD create_redline.
+*&---------------------------------------------------------------------*
+*& Method create_redline
+*&---------------------------------------------------------------------*
+*======================================================================*
+* Program Name    : ZCLBOM_UPLOAD_REDLINE                              *
+* Title           : Create Redline                                     *
+* Written By      : LeverX - LLittle                                   *
+* Creation Date   : 08.1.2017                                          *
+* Project         : Create BOM/Redline From Input File                 *
+* Transaction     : N/A                                                *
+*======================================================================*
+* P R O G R A M            D E S C R I P T I O N                       *
+*----------------------------------------------------------------------*
+* Create Redline                                                       *
+*======================================================================*
+* P R O G R A M            H I S T O R Y                               *
+* (Most recent on top)                                                 *
+*----------------------------------------------------------------------*
+* Date         Request #   Developer              Project or CR No.    *
+*----------------------------------------------------------------------*
+* 08/1/2017   ECDK980061   ZLLITTLE                           P15-002  *
+* Description                                                          *
+* Initial creation date                                                *
+*----------------------------------------------------------------------*
+*-----------------------------------------------------------------------
+*                  Definition of Structures
+*-----------------------------------------------------------------------
+    DATA: l_redline_values TYPE /plmb/s_redline_node_data,
+          l_dir_key        TYPE /plmb/s_dir_id.
+
+*-----------------------------------------------------------------------
+*                  Definition of Objects
+*-----------------------------------------------------------------------
+    DATA: lo_redline TYPE REF TO /plmi/cl_redline_bo.
+
+*-----------------------------------------------------------------------
+*                  Definition of Variables
+*-----------------------------------------------------------------------
+    DATA: lv_counter TYPE /plmb/cim_count,
+          lv_bom_qty TYPE i.
+
+*-----------------------------------------------------------------------
+*                  Definition of Field Symbols
+*-----------------------------------------------------------------------
+    FIELD-SYMBOLS: <lfs_excel_line>   LIKE LINE OF ct_excel_file,
+                   <lfs_bom_itm_data> LIKE LINE OF mt_bom_itm_data.
+
+*=======================================================================
+*               Program Main Routine
+*=======================================================================
+* Get ER change items
+    get_er_change_items( ).
+    DELETE mt_chgitm_keys WHERE object_type <> /plmb/if_otype_c=>gc_mbom.
+*  Get all BOMs item data
+    get_all_boms_itm_data( it_excel_file = ct_excel_file ).
+    CLEAR mv_parent.
+    gs_error_msg-excel_line = 1.
+    /plmi/cl_redline_bo=>get_instance( IMPORTING eo_bo = lo_redline ).
+    "Clear Buffer
+    lo_redline->refresh_buffer( ).
+* Set Redline details and fields
+    LOOP AT ct_excel_file ASSIGNING <lfs_excel_line>.
+      IF mv_parent <> <lfs_excel_line>-parent_mid.
+        "Set remainig result table fields
+        set_result_fields( it_excel_file = ct_excel_file ).
+        "IF BOM list has additional items on it, they need to be removed via redline
+        set_bom_itms_to_delete( CHANGING cs_redline_values = l_redline_values ).
+        mv_parent = <lfs_excel_line>-parent_mid.
+        "Save redline changes when parent_mid changes
+        IF l_redline_values-node_data IS NOT INITIAL.
+          "Save Redline
+          save_changes(
+            CHANGING
+              co_redline        = lo_redline
+              cs_redline_values = l_redline_values
+              cv_node_key       = lv_counter ).
+          lo_redline->refresh_buffer( ).
+        ENDIF.
+        "Set Redline Details.
+        set_details(
+           EXPORTING
+             is_excel_line = <lfs_excel_line>
+             it_excel_file = ct_excel_file
+           CHANGING
+             co_redline = lo_redline
+             cs_redline_values = l_redline_values ).
+      ENDIF.
+      gs_error_msg-excel_line = gs_error_msg-excel_line + 1.
+* Determine if item is in the BOM if so, check if quanities match
+      CASE <lfs_excel_line>-item_cat.
+        WHEN ms_redline_itm_type-stock
+          OR ms_redline_itm_type-ref_mat
+          OR ms_redline_itm_type-ref_doc.
+          READ TABLE mt_bom_itm_data ASSIGNING <lfs_bom_itm_data>
+            WITH KEY parent_mid = <lfs_excel_line>-parent_mid
+                     cmp_mid    = <lfs_excel_line>-cmp_mid
+                     postp      = <lfs_excel_line>-item_cat.
+        WHEN ms_redline_itm_type-ref_doc.
+          READ TABLE mt_bom_itm_data ASSIGNING <lfs_bom_itm_data>
+            WITH KEY dokar = <lfs_excel_line>-dokar
+                     doknr = <lfs_excel_line>-doknr
+                     doktl = <lfs_excel_line>-doktl
+                     dokvr = <lfs_excel_line>-dokvr.
+        WHEN OTHERS.
+          READ TABLE mt_bom_itm_data ASSIGNING <lfs_bom_itm_data>
+            WITH KEY parent_mid = <lfs_excel_line>-parent_mid
+                     potx1      = <lfs_excel_line>-text1
+                     potx2      = <lfs_excel_line>-text2
+                     postp      = <lfs_excel_line>-item_cat.
+      ENDCASE.
+      IF sy-subrc = 0.
+        lv_bom_qty = <lfs_bom_itm_data>-cmp_qty.
+        IF lv_bom_qty = <lfs_excel_line>-cmp_qty
+          AND <lfs_bom_itm_data>-meins = <lfs_excel_line>-cmp_uom.
+*          CONTINUE.
+        ELSE.
+          "redline node type change
+          set_change_fields(
+            EXPORTING
+              is_excel_line     = <lfs_excel_line>
+            CHANGING
+              cs_redline_values = l_redline_values ).
+        ENDIF.
+        "Remove item off mt_bom_item_data
+        CASE <lfs_excel_line>-item_cat.
+          WHEN ms_redline_itm_type-stock
+            OR ms_redline_itm_type-ref_mat
+            OR ms_redline_itm_type-ref_doc.
+            DELETE mt_bom_itm_data WHERE parent_mid = <lfs_excel_line>-parent_mid
+                                     AND cmp_mid    = <lfs_excel_line>-cmp_mid
+                                     AND postp      = <lfs_excel_line>-item_cat.
+          WHEN ms_redline_itm_type-document.
+            DELETE mt_bom_itm_data WHERE parent_mid = <lfs_excel_line>-parent_mid
+                                     AND dokar      = <lfs_excel_line>-dokar
+                                     AND doknr      = <lfs_excel_line>-doknr "l_dir_key-documentnumber
+                                     AND doktl      = <lfs_excel_line>-doktl "l_dir_key-documentpart
+                                     AND dokvr      = <lfs_excel_line>-dokvr. "l_dir_key-documentversion.
+          WHEN OTHERS.
+            DELETE mt_bom_itm_data WHERE parent_mid = <lfs_excel_line>-parent_mid
+                                     AND potx1      = <lfs_excel_line>-text1
+                                     AND potx2      = <lfs_excel_line>-text2
+                                     AND postp      = <lfs_excel_line>-item_cat.
+        ENDCASE.
+      ELSE.
+      "Create new node type on redline - Set Redline field values
+        lv_counter = lv_counter + 1.
+        set_redline_fields(
+          EXPORTING
+            is_excel_line = <lfs_excel_line>
+            iv_counter    = lv_counter
+          CHANGING
+            cs_redline_values = l_redline_values ).
+      ENDIF.
+    ENDLOOP.
+
+    "Perform final save for last BOM in excel file
+    set_result_fields( it_excel_file = ct_excel_file ).
+    "IF BOM list has additional items on it, they need to be removed via redline
+    set_bom_itms_to_delete( CHANGING cs_redline_values = l_redline_values ).
+    "Save redline changes
+    save_changes(
+      CHANGING
+        co_redline        = lo_redline
+        cs_redline_values = l_redline_values
+        cv_node_key       = lv_counter ).
+  ENDMETHOD.
