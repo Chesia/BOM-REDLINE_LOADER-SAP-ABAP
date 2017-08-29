@@ -1,0 +1,72 @@
+  METHOD get_er_change_items.
+*&---------------------------------------------------------------------*
+*& Method get_er_change_items
+*&---------------------------------------------------------------------*
+*======================================================================*
+* Program Name    : ZCLBOM_UPLOAD_REDLINE                              *
+* Title           : Get all ER change items                            *
+* Written By      : LeverX - LLittle                                   *
+* Creation Date   : 08.1.2017                                          *
+* Project         : Create BOM/Redline From Input File                 *
+* Transaction     : N/A                                                *
+*======================================================================*
+* P R O G R A M            D E S C R I P T I O N                       *
+*----------------------------------------------------------------------*
+* Get all ER change items based on change number                       *
+*======================================================================*
+* P R O G R A M            H I S T O R Y                               *
+* (Most recent on top)                                                 *
+*----------------------------------------------------------------------*
+* Date         Request #   Developer              Project or CR No.    *
+*----------------------------------------------------------------------*
+* 08/1/2017   ECDK980061   ZLLITTLE                           P15-002  *
+* Description                                                          *
+* Initial creation date                                                *
+*----------------------------------------------------------------------*
+*-----------------------------------------------------------------------
+*                  Definition of Tables
+*-----------------------------------------------------------------------
+    DATA: lt_message TYPE /plmb/t_spi_msg.
+
+*-----------------------------------------------------------------------
+*                  Definition of Structures
+*-----------------------------------------------------------------------
+    DATA: l_ecr_obj_id TYPE /plmb/s_ecr_object_id.
+
+*-----------------------------------------------------------------------
+*                  Definition of Variables
+*-----------------------------------------------------------------------
+    DATA: lv_severity TYPE /plmb/spi_msg_severity.
+
+*-----------------------------------------------------------------------
+*                  Definition of Objects
+*-----------------------------------------------------------------------
+    DATA: lo_ecr_bo TYPE REF TO /plmi/cl_ecr_bo.
+
+*=======================================================================
+*               Program Main Routine
+*=======================================================================
+    SELECT SINGLE *
+      FROM /plmi/ecr_hdr
+      INTO ms_ecr_info
+      WHERE lead_change_no = g_mbom_hdata-change_no.
+    IF sy-subrc = 0.
+      "Get Business Object ECR
+      /plmi/cl_ecr_bo=>get_instance( IMPORTING eo_bo = lo_ecr_bo ).
+      "cleanup to clear buffer
+      lo_ecr_bo->cleanup( ).
+      "Set ECR Object ID
+      l_ecr_obj_id-guid = ms_ecr_info-case_guid.
+      lo_ecr_bo->get_change_items_all(
+        EXPORTING
+          is_ecr_id      = l_ecr_obj_id     " ECR Object ID
+        IMPORTING
+          et_message     = lt_message        " Message
+          ev_severity    = lv_severity       " Severity
+          et_chgitm_keys = mt_chgitm_keys ). " ECR - Change item object type and key details
+      RETURN.
+    ENDIF.
+    gs_error_msg-error_type = gc_error.
+    MESSAGE i063(zmcbom_msgs) INTO gs_error_msg-error_msg.
+    APPEND gs_error_msg TO gt_error_msgs.
+  ENDMETHOD.
