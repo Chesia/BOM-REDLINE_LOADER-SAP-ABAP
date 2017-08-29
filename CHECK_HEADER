@@ -1,0 +1,54 @@
+  METHOD check_header.
+*&---------------------------------------------------------------------*
+*& Method Check Headers
+*&---------------------------------------------------------------------*
+*======================================================================*
+* Program Name    : ZCLBOM_UPLOAD_REDLINE                              *
+* Title           : Check first excel line to BOM header               *
+* Written By      : LeverX - LLittle                                   *
+* Creation Date   : 03.01.2016                                         *
+* Project         : Create BOM/Redline From Input File                 *
+* Transaction     : N/A                                                *
+*======================================================================*
+* P R O G R A M            D E S C R I P T I O N                       *
+*----------------------------------------------------------------------*
+* Check if first line in excel file match with the BOM the user is     *
+* currently on.                                                        *
+*======================================================================*
+* P R O G R A M            H I S T O R Y                               *
+* (Most recent on top)                                                 *
+*----------------------------------------------------------------------*
+* Date         Request #   Developer              Project or CR No.    *
+*----------------------------------------------------------------------*
+* 08/1/2017   ECDK980061   ZLLITTLE                           P15-002  *
+* Description                                                          *
+* Initial creation date                                                *
+*----------------------------------------------------------------------*
+*-----------------------------------------------------------------------
+*                  Definition of Variables
+*-----------------------------------------------------------------------
+    DATA: lv_file_parent_mid TYPE string,
+          lv_plant           TYPE mast-werks,
+          lv_alt_bom         TYPE string.
+
+*=======================================================================
+*               Program Main Routine
+*=======================================================================
+    "Compare header data from file to the BOM user is currently on
+    IF is_first_row-parent_mid  = g_mbom_hdata-material
+      AND is_first_row-plant     = g_mbom_hdata-plant
+      AND is_first_row-alt_bom   = g_mbom_hdata-alternative_bom
+      AND is_first_row-bom_usage = g_mbom_hdata-bom_usage.
+      MESSAGE i038(zmcbom_msgs) INTO gs_error_msg-error_msg.
+      gs_error_msg-error_type = gc_success.
+    ELSE.
+      MESSAGE i037(zmcbom_msgs) INTO gs_error_msg-error_msg.
+      gs_error_msg-error_type = gc_error.
+    ENDIF.
+    gs_error_msg-excel_line = 2.
+    gs_error_msg-parent_mid = is_first_row-parent_mid.
+    gs_error_msg-plant = is_first_row-plant.
+    gs_error_msg-bom_usage = is_first_row-bom_usage.
+    gs_error_msg-bom_alt = is_first_row-alt_bom.
+    APPEND gs_error_msg TO gt_error_msgs.
+  ENDMETHOD.
