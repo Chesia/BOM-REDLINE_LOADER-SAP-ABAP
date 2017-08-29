@@ -1,0 +1,108 @@
+  METHOD check_req_redline_fields.
+*&---------------------------------------------------------------------*
+*& Method check_req_redline_fields
+*&---------------------------------------------------------------------*
+*======================================================================*
+* Program Name    : ZCLBOM_UPLOAD_REDLINE                              *
+* Title           : Check Required Fields for Redline creations        *
+* Written By      : LeverX - LLittle                                   *
+* Creation Date   : 08.01.2017                                         *
+* Project         : Create BOM/Redline From Input File                 *
+* Transaction     : N/A                                                *
+*======================================================================*
+* P R O G R A M            D E S C R I P T I O N                       *
+*----------------------------------------------------------------------*
+* Check required fields for redline creation are not intial            *
+*======================================================================*
+* P R O G R A M            H I S T O R Y                               *
+* (Most recent on top)                                                 *
+*----------------------------------------------------------------------*
+* Date         Request #   Developer              Project or CR No.    *
+*----------------------------------------------------------------------*
+* 08/01/2017   ECDK980061 LeverX - LLITTLE                     P15-002 *
+* Description                                                          *
+* Initial creation date                                                *
+*----------------------------------------------------------------------*
+*-----------------------------------------------------------------------
+*                  Definition of Variables
+*-----------------------------------------------------------------------
+    DATA: lv_bom_num TYPE mast-stlnr,
+          lv_bom_key TYPE string.
+
+*-----------------------------------------------------------------------
+*                  Definition of Constantns
+*-----------------------------------------------------------------------
+    CONSTANTS: lc_parent_mid TYPE string VALUE 'PARENT_MID',
+               lc_alt_bom    TYPE string VALUE 'ALT (BOM)',
+               lc_bom_usage  TYPE string VALUE 'USAGE (BOM)',
+               lc_cmp_qty    TYPE string VALUE 'CMP_QTY (Item Quantity)',
+               lc_cmp_uom    TYPE string VALUE 'CMP_UOM (Unit of Measure)',
+               lc_usage      TYPE string VALUE 'BOM usage',
+               lc_plant      TYPE string VALUE 'Plant'.
+
+*=======================================================================
+*               Program Main Routine
+*=======================================================================
+    gs_error_msg-error_type = gc_error.
+
+* All these variables need to have a value in them
+* If they are blank, they will cause issues when creaing redline
+    "Check Parent_MID
+    IF is_excel_line-parent_mid IS INITIAL.
+      MESSAGE i080(zmcbom_msgs) WITH lc_parent_mid INTO gs_error_msg-error_msg.
+      APPEND gs_error_msg TO gt_error_msgs.
+    ENDIF.
+
+    "check BOM Alternative
+    IF is_excel_line-alt_bom IS INITIAL.
+      MESSAGE i080(zmcbom_msgs) WITH lc_alt_bom INTO gs_error_msg-error_msg.
+      APPEND gs_error_msg TO gt_error_msgs.
+    ENDIF.
+
+    "Check BOM Usage
+    IF is_excel_line-bom_usage IS INITIAL.
+      MESSAGE i080(zmcbom_msgs) WITH lc_bom_usage INTO gs_error_msg-error_msg.
+      APPEND gs_error_msg TO gt_error_msgs.
+    ENDIF.
+
+    "Check Item QTY
+    IF is_excel_line-cmp_qty IS INITIAL.
+      MESSAGE i080(zmcbom_msgs) WITH lc_cmp_qty INTO gs_error_msg-error_msg.
+      APPEND gs_error_msg TO gt_error_msgs.
+    ENDIF.
+
+    "Check Item Unit of Measure
+    IF is_excel_line-cmp_uom IS INITIAL.
+      MESSAGE i080(zmcbom_msgs) WITH lc_cmp_uom INTO gs_error_msg-error_msg.
+      APPEND gs_error_msg TO gt_error_msgs.
+    ENDIF.
+
+    "Check if BOM exists
+    IF mv_parent <> is_excel_line-parent_mid.
+      SELECT SINGLE
+        stlnr
+        FROM mast
+        INTO lv_bom_num
+        WHERE matnr = is_excel_line-parent_mid
+          AND werks = is_excel_line-plant
+          AND stlan = is_excel_line-bom_usage
+          AND stlal = is_excel_line-alt_bom.
+      IF sy-subrc <> 0.
+        CONCATENATE is_excel_line-parent_mid is_excel_line-plant is_excel_line-bom_usage is_excel_line-alt_bom
+          INTO lv_bom_key SEPARATED BY '/'.
+        MESSAGE i087(zmcbom_msgs) WITH lv_bom_key INTO gs_error_msg-error_msg.
+        APPEND gs_error_msg TO gt_error_msgs.
+      ENDIF.
+    ENDIF.
+
+* PLANT and BOM usage must be the same as top level BOM
+    IF is_excel_line-plant <> g_mbom_hdata-plant.
+      MESSAGE i091(zmcbom_msgs) WITH lc_plant INTO gs_error_msg-error_msg.
+      APPEND gs_error_msg TO gt_error_msgs.
+    ENDIF.
+
+    IF is_excel_line-bom_usage <> g_mbom_hdata-bom_usage.
+      MESSAGE i091(zmcbom_msgs) WITH lc_usage INTO gs_error_msg-error_msg.
+      APPEND gs_error_msg TO gt_error_msgs.
+    ENDIF.
+  ENDMETHOD.
