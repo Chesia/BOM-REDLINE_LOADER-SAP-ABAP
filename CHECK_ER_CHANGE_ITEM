@@ -1,0 +1,89 @@
+  METHOD check_er_change_item.
+*&---------------------------------------------------------------------*
+*& Method check_er_change_item
+*&---------------------------------------------------------------------*
+*======================================================================*
+* Program Name    : ZCLBOM_UPLOAD_REDLINE                              *
+* Title           : Check if excel item is on ER                       *
+* Written By      : LeverX - LLittle                                   *
+* Creation Date   : 08.1.2017                                          *
+* Project         : Create BOM/Redline From Input File                 *
+* Transaction     : N/A                                                *
+*======================================================================*
+* P R O G R A M            D E S C R I P T I O N                       *
+*----------------------------------------------------------------------*
+* Check to see if excel item is on ER, if not, return error msg        *
+*======================================================================*
+* P R O G R A M            H I S T O R Y                               *
+* (Most recent on top)                                                 *
+*----------------------------------------------------------------------*
+* Date         Request #   Developer              Project or CR No.    *
+*----------------------------------------------------------------------*
+* 08/1/2017   ECDK980061   ZLLITTLE                           P15-002  *
+* Description                                                          *
+* Initial creation date                                                *
+*----------------------------------------------------------------------*
+*-----------------------------------------------------------------------
+*                  Definition of Structures
+*-----------------------------------------------------------------------
+    DATA: l_mbom_key      TYPE /plmb/s_mbom_id,
+          l_dir_key       TYPE  /plmb/s_dir_id,
+          l_bom_check_key TYPE csap_mbom.
+
+*-----------------------------------------------------------------------
+*                  Definition of Variables
+*-----------------------------------------------------------------------
+    DATA: lv_internal_key TYPE /plmb/gos_internal_key,
+          lv_obj_type     TYPE /plmb/gos_object_type,
+          lv_header_mat   TYPE boolean VALUE abap_false.
+
+*=======================================================================
+*               Program Main Routine
+*=======================================================================
+    IF ms_bom_key-matnr = is_excel_line-parent_mid
+      AND ms_bom_key-werks = is_excel_line-plant
+      AND ms_bom_key-stlan = is_excel_line-bom_usage
+      AND ms_bom_key-stlal = is_excel_line-alt_bom.
+      RETURN.
+    ENDIF.
+
+* If a new BOM, check BOM and BOM header material are on the ER
+    l_mbom_key-plant = is_excel_line-plant.
+    l_mbom_key-bom_usage = is_excel_line-bom_usage.
+    l_mbom_key-alternative_bom = is_excel_line-alt_bom.
+    DO 2 TIMES.
+      CLEAR l_mbom_key-material.
+      CASE sy-index.
+        WHEN 1.
+          "Set obj type
+          l_mbom_key-material = is_excel_line-parent_mid.
+          lv_obj_type = /plmb/if_otype_c=>gc_mbom.
+          "Create internal key
+          /plmb/cl_gos_cnv_tools=>key_to_intern(
+            EXPORTING
+              iv_otype_name   = /plmb/if_otype_c=>gc_mbom " Object Type
+              is_key          = l_mbom_key                " Key structure
+            IMPORTING
+              ev_internal_key = lv_internal_key ).   " External key format
+        WHEN OTHERS.
+          lv_obj_type = /plmb/if_otype_c=>gc_mat.
+          lv_internal_key = is_excel_line-parent_mid.
+          lv_header_mat = abap_true.
+      ENDCASE.
+
+* Check if material is on ER change list
+      READ TABLE mt_chgitm_keys WITH KEY object_type = lv_obj_type
+                                         object_id   = lv_internal_key
+                                         TRANSPORTING NO FIELDS.
+      IF sy-subrc <> 0.
+        IF lv_header_mat = abap_true.
+          MESSAGE i093(zmcbom_msgs) WITH lv_internal_key INTO gs_error_msg-error_msg.
+        ELSE.
+          CONCATENATE l_mbom_key-material l_mbom_key-plant l_mbom_key-bom_usage l_mbom_key-alternative_bom
+            INTO lv_internal_key SEPARATED BY '/'.
+          MESSAGE i064(zmcbom_msgs) WITH lv_internal_key INTO gs_error_msg-error_msg.
+        ENDIF.
+        APPEND gs_error_msg TO gt_error_msgs.
+      ENDIF.
+    ENDDO.
+  ENDMETHOD.
