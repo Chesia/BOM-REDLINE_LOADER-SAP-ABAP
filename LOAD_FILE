@@ -1,0 +1,112 @@
+  METHOD load_file.
+*&---------------------------------------------------------------------*
+*& Method load_file
+*&---------------------------------------------------------------------*
+*======================================================================*
+* Program Name    : ZCLBOM_UPLOAD_REDLINE                              *
+* Title           : Load data from excel file to local table(s)        *
+* Written By      : LeverX - LLittle                                   *
+* Creation Date   : 08.1.2017                                          *
+* Project         : Create BOM/Redline From Input File                 *
+* Transaction     : N/A                                                *
+*======================================================================*
+* P R O G R A M            D E S C R I P T I O N                       *
+*----------------------------------------------------------------------*
+* Turn excel file into a local table                                   *
+* Check excel file for error on first pass                             *
+* If all checks pass, create Redline                                   *
+*======================================================================*
+* P R O G R A M            H I S T O R Y                               *
+* (Most recent on top)                                                 *
+*----------------------------------------------------------------------*
+* Date         Request #   Developer              Project or CR No.    *
+*----------------------------------------------------------------------*
+* 08/1/2017   ECDK980061   ZLLITTLE                           P15-002  *
+* Description                                                          *
+* Initial creation date                                                *
+*----------------------------------------------------------------------*
+
+*-----------------------------------------------------------------------
+*                  Definition of Tables
+*-----------------------------------------------------------------------
+    DATA: lt_contents   TYPE string_table,
+          lt_excel_file TYPE TABLE OF gty_node_data.
+
+*-----------------------------------------------------------------------
+*                  Definition of Structures
+*-----------------------------------------------------------------------
+    DATA: l_redline_data TYPE gty_node_data,
+          l_excel_data   TYPE gty_node_data.
+
+*-----------------------------------------------------------------------
+*                  Definition of Field Symbols
+*-----------------------------------------------------------------------
+    FIELD-SYMBOLS: <lfs_output> TYPE string.
+
+*=======================================================================
+*               Program Main Routine
+*=======================================================================
+    "Convert excel file data in to a usable internal table
+    get_tab_from_excel_file(
+      EXPORTING
+        ir_upload_file = ir_upload_file
+      IMPORTING
+        et_contents = lt_contents ).
+
+    READ TABLE lt_contents INDEX 1 ASSIGNING <lfs_output>.
+    IF sy-subrc = 0.
+      "Check header columns
+      check_file_headers(
+        CHANGING
+          cs_excel_line = <lfs_output> )."Excel File line
+      IF gt_error_msgs IS NOT INITIAL.
+        et_results = gt_error_msgs.
+        RETURN.
+      ENDIF.
+    ENDIF.
+    IF gt_error_msgs IS INITIAL.
+      "Build internal table out of excel data
+      DELETE lt_contents INDEX 1.
+      LOOP AT lt_contents ASSIGNING <lfs_output>.
+        split_line(
+          EXPORTING
+            is_file_line = <lfs_output>    " Input line from file
+          IMPORTING
+            es_node_data = l_excel_data ). " Header and Redline Node data
+        IF l_excel_data IS NOT INITIAL.
+          APPEND l_excel_data TO lt_excel_file.
+        ENDIF.
+        CLEAR l_excel_data.
+      ENDLOOP.
+
+      "After excel internal table is created, perform checks
+      CASE cv_echo_data.
+        WHEN abap_false.
+          validity_checks( it_excel_file = lt_excel_file ).
+          READ TABLE gt_error_msgs WITH KEY error_type = gc_error TRANSPORTING NO FIELDS.
+          IF sy-subrc <> 0.
+            "All validations pass
+            cv_echo_data = abap_true.
+            es_ecr_info = ms_ecr_info.
+          ENDIF.
+          et_results = gt_error_msgs.
+          "Assign echo data
+*          READ TABLE lt_excel_file INDEX 1 INTO l_excel_data.
+*          IF sy-subrc = 0.
+*            es_echo_data-redline_name = l_excel_data-red_name.
+*            es_echo_data-redline_desc = l_excel_data-hdr_desc.
+*            es_echo_data-plant        = l_excel_data-plant.
+*            es_echo_data-material     = l_excel_data-parent_mid.
+*            es_echo_data-material_rev = l_excel_data-revision.
+*            es_echo_data-alt_bom      = l_excel_data-alt_bom.
+*            es_echo_data-bom_usage    = l_excel_data-bom_usage.
+*          ENDIF.
+        WHEN abap_true.
+          "Create redline
+          create_redline(
+            CHANGING
+              ct_excel_file = lt_excel_file ).
+              et_results = gt_error_msgs.
+      ENDCASE.
+    ENDIF.
+  ENDMETHOD.
