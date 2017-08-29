@@ -1,0 +1,50 @@
+  METHOD check_user_name.
+*&---------------------------------------------------------------------*
+*& Method check_redline_name
+*&---------------------------------------------------------------------*
+*======================================================================*
+* Program Name    : ZCLBOM_UPLOAD_REDLINE                              *
+* Title           : check_user_name                                    *
+* Written By      : LeverX - LLittle                                   *
+* Creation Date   : 08.22.2017                                         *
+* Project         : Create BOM/Redline From Input File                 *
+* Transaction     : N/A                                                *
+*======================================================================*
+* P R O G R A M            D E S C R I P T I O N                       *
+*----------------------------------------------------------------------*
+* Check if user name on file exists in SAP                             *
+*======================================================================*
+* P R O G R A M            H I S T O R Y                               *
+* (Most recent on top)                                                 *
+*----------------------------------------------------------------------*
+* Date         Request #   Developer              Project or CR No.    *
+*----------------------------------------------------------------------*
+* 08/22/2017   ECDK980061 LeverX - LLITTLE                     P15-002 *
+* Description                                                          *
+* Initial creation date                                                *
+*----------------------------------------------------------------------*
+*-----------------------------------------------------------------------
+*                  Definition of Variabels
+*-----------------------------------------------------------------------
+    DATA: l_return TYPE bapiret2.
+
+*-----------------------------------------------------------------------
+*                  Definition of Variabels
+*-----------------------------------------------------------------------
+    DATA: lv_user_name TYPE bapibname.
+
+*=======================================================================
+*               Program Main Routine
+*=======================================================================
+    lv_user_name = is_excel_line-pic_user.
+    CALL FUNCTION 'BAPI_USER_EXISTENCE_CHECK'
+      EXPORTING
+        username = lv_user_name
+      IMPORTING
+        return   = l_return.
+
+    IF l_return-number = 124.
+      MESSAGE i094(zmcbom_msgs) WITH lv_user_name INTO gs_error_msg-error_msg.
+      APPEND gs_error_msg TO gt_error_msgs.
+    ENDIF.
+  ENDMETHOD.
