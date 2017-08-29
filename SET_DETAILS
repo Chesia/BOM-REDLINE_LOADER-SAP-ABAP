@@ -1,0 +1,107 @@
+  METHOD set_details.
+*&---------------------------------------------------------------------*
+*& Method set_details
+*&---------------------------------------------------------------------*
+*======================================================================*
+* Program Name    : ZCLBOM_UPLOAD_REDLINE                              *
+* Title           : Check BOM header data and create redline           *
+* Written By      : LeverX - LLittle                                   *
+* Creation Date   : 08.01.2016                                         *
+* Project         : Create BOM/Redline From Input File                 *
+* Transaction     : N/A                                                *
+*======================================================================*
+* P R O G R A M            D E S C R I P T I O N                       *
+*----------------------------------------------------------------------*
+* Check if BOM header data, if BOM exists create redlining             *
+*======================================================================*
+* P R O G R A M            H I S T O R Y                               *
+* (Most recent on top)                                                 *
+*----------------------------------------------------------------------*
+* Date         Request #   Developer              Project or CR No.    *
+*----------------------------------------------------------------------*
+* 08/1/2017   ECDK980061   ZLLITTLE                           P15-002  *
+* Description                                                          *
+* Initial creation date                                                *
+*----------------------------------------------------------------------*
+*-----------------------------------------------------------------------
+*                  Definition of Structures
+*-----------------------------------------------------------------------
+    DATA: l_details           TYPE /plmb/s_redline_init_sp,
+          l_mbom_id           TYPE /plmb/s_mbom_id,
+          l_redline_id        TYPE /plmb/s_redline_id,
+          l_redline_name_desc TYPE /plmb/s_redline_name_desc,
+          l_aenr              TYPE aenr.
+
+*-----------------------------------------------------------------------
+*                  Definition of Constants
+*-----------------------------------------------------------------------
+    CONSTANTS: lc_status TYPE /plmb/s_redline_init_sp-status VALUE 'IW'. "In Working status
+
+*=======================================================================
+*               Program Main Routine
+*=======================================================================
+*Set redline values
+    cs_redline_values-object_abbid = 'PLM_MBOM'.
+    cs_redline_values-node_name = /plmu/if_ui_mbom_c=>gc_nodename_mbom_items.
+* Redline Node key information
+    l_mbom_id-material = is_excel_line-parent_mid.
+    l_mbom_id-alternative_bom = is_excel_line-alt_bom.
+    l_mbom_id-plant           = is_excel_line-plant.
+    l_mbom_id-bom_usage       = is_excel_line-bom_usage.
+* Create internal key
+    /plmb/cl_gos_cnv_tools=>key_to_intern(
+      EXPORTING
+        iv_otype_name   = /plmb/if_otype_c=>gc_mbom
+        is_key          = l_mbom_id
+      IMPORTING
+        ev_internal_key = l_details-redline_obj_key ).
+
+    l_details-redline_name = is_excel_line-red_name.
+    TRANSLATE l_details-redline_name TO UPPER CASE.
+
+    l_details-gos_object_type = /plmb/if_otype_c=>gc_mbom.
+    l_details-redline_desc    = is_excel_line-hdr_desc.
+    l_details-resp_person     = is_excel_line-pic_user.
+    l_details-created_by      = is_excel_line-pic_user.
+    l_details-created_on      = sy-datum.
+    l_details-status          = lc_status."'IW'
+    l_details-status_descr    = 'In Work'."is_header-bom_status
+    "Set change number
+    CALL FUNCTION 'CONVERSION_EXIT_AENNR_INPUT'
+      EXPORTING
+        input              = g_mbom_hdata-change_no
+     IMPORTING
+       OUTPUT             = l_details-change_no
+     EXCEPTIONS
+       LENGTH_ERROR       = 1
+       OTHERS             = 2.
+    IF sy-subrc <> 0.
+      "Error processing change number
+    ENDIF.
+    "Set valid from
+    CALL FUNCTION 'BU_CHANGE_NUMBER_READ_02'
+     EXPORTING
+       I_AENNR         = g_mbom_hdata-change_no
+     IMPORTING
+       O_AENR          = l_aenr
+     EXCEPTIONS
+       NOT_FOUND       = 1
+       OTHERS          = 2.
+    IF sy-subrc <> 0.
+      "Valid from not found
+    ENDIF.
+    l_details-valid_date = l_aenr-datuv.
+
+*Set redline ID & description
+    l_redline_id-gos_object_type = l_details-gos_object_type.
+    l_redline_id-redline_obj_key = l_details-redline_obj_key.
+    l_redline_id-redline_name = l_details-redline_name.
+    l_redline_name_desc-redline_name = l_details-redline_name.
+    l_redline_name_desc-redline_description = is_excel_line-hdr_desc.
+    co_redline->set_redline_id(
+      EXPORTING
+        is_redline_id = l_redline_id
+        is_redline_data = l_redline_name_desc ).
+
+* Set Redline Detail.
+    co_redline->set_redline_details( is_redline_data = l_details ).
