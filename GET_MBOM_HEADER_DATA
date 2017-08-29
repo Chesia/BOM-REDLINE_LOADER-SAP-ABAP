@@ -1,0 +1,87 @@
+   METHOD get_mbom_header_data.
+*&---------------------------------------------------------------------*
+*& Method GET_MBOM_HEADER_DATA
+*&---------------------------------------------------------------------*
+*======================================================================*
+* Program Name    : ZCLBOM_UPLOAD_REDLINE                              *
+* Title           : Get BOM header data                                *
+* Written By      : LeverX - LLittle                                   *
+* Creation Date   : 08.1.2017                                          *
+* Project         : Create BOM/Redline From Input File                 *
+* Transaction     : N/A                                                *
+*======================================================================*
+* P R O G R A M            D E S C R I P T I O N                       *
+*----------------------------------------------------------------------*
+* Get MBOM header data user is on                                      *
+*======================================================================*
+* P R O G R A M            H I S T O R Y                               *
+* (Most recent on top)                                                 *
+*----------------------------------------------------------------------*
+* Date         Request #   Developer              Project or CR No.    *
+*----------------------------------------------------------------------*
+* 08/1/2017   ECDK980061   ZLLITTLE                           P15-002  *
+* Description                                                          *
+* Initial creation date                                                *
+*----------------------------------------------------------------------*
+*-----------------------------------------------------------------------
+*                  Definition of Field Symbols
+*-----------------------------------------------------------------------
+    FIELD-SYMBOLS: <lfs_mbom_header> TYPE data,
+                   <lfs_temp>        TYPE any.
+
+*=======================================================================
+*               Program Main Routine
+*=======================================================================
+    READ TABLE it_node_data INDEX 1 ASSIGNING <lfs_mbom_header>.
+    IF <lfs_mbom_header> IS NOT ASSIGNED.
+      "error handling
+      RETURN.
+    ENDIF.
+    "Move header data to attribute
+    IF iv_change_number = abap_false.
+      ASSIGN COMPONENT 'MATERIAL' OF STRUCTURE <lfs_mbom_header> TO <lfs_temp>.
+      IF sy-subrc = 0.
+        g_mbom_hdata-material = <lfs_temp>.
+      ENDIF.
+
+      ASSIGN COMPONENT 'PLANT' OF STRUCTURE <lfs_mbom_header> TO <lfs_temp>.
+      IF sy-subrc = 0.
+        g_mbom_hdata-plant = <lfs_temp>.
+      ENDIF.
+
+      ASSIGN COMPONENT 'BOM_USAGE' OF STRUCTURE <lfs_mbom_header> TO <lfs_temp>.
+      IF sy-subrc = 0.
+        g_mbom_hdata-bom_usage = <lfs_temp>.
+      ENDIF.
+
+      ASSIGN COMPONENT 'ALTERNATIVE_BOM' OF STRUCTURE <lfs_mbom_header> TO <lfs_temp>.
+      IF sy-subrc = 0.
+        g_mbom_hdata-alternative_bom = <lfs_temp>.
+      ENDIF.
+
+
+* Convert to internal
+      CALL FUNCTION 'CONVERSION_EXIT_MATN1_INPUT'
+        EXPORTING
+          input  = g_mbom_hdata-material
+        IMPORTING
+          output = g_mbom_hdata-material.
+
+      CALL FUNCTION 'CONVERSION_EXIT_ALPHA_INPUT'
+        EXPORTING
+          input  = g_mbom_hdata-alternative_bom
+        IMPORTING
+          output = g_mbom_hdata-alternative_bom.
+
+      CALL FUNCTION 'CONVERSION_EXIT_ALPHA_INPUT'
+        EXPORTING
+          input  = g_mbom_hdata-plant
+        IMPORTING
+          output = g_mbom_hdata-plant.
+    ELSE.
+      ASSIGN COMPONENT 'CHANGE_NO' OF STRUCTURE <lfs_mbom_header> TO <lfs_temp>.
+      IF sy-subrc = 0.
+        g_mbom_hdata-change_no = <lfs_temp>.
+      ENDIF.
+    ENDIF.
+  ENDMETHOD.
