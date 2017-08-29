@@ -1,0 +1,117 @@
+  METHOD validity_checks.
+*&---------------------------------------------------------------------*
+*& Method validity_checks
+*&---------------------------------------------------------------------*
+*======================================================================*
+* Program Name    : ZCLBOM_UPLOAD_REDLINE                              *
+* Title           : Perfrom Validity checks on excel file              *
+* Written By      : LeverX - LLittle                                   *
+* Creation Date   : 08.01.2017                                         *
+* Project         : Create BOM/Redline From Input File                 *
+* Transaction     : N/A                                                *
+*======================================================================*
+* P R O G R A M            D E S C R I P T I O N                       *
+*----------------------------------------------------------------------*
+* Check the excel file for multiple errors and if found, return a      *
+* a table with all the errors listed stating which excel line contains *
+* the error and the associated error message                           *
+*======================================================================*
+* P R O G R A M            H I S T O R Y                               *
+* (Most recent on top)                                                 *
+*----------------------------------------------------------------------*
+* Date         Request #   Developer              Project or CR No.    *
+*----------------------------------------------------------------------*
+* 08/01/2017   ECDK980061 LeverX - LLITTLE                     P15-002 *
+* Description                                                          *
+* Initial creation date                                                *
+*----------------------------------------------------------------------*
+*-----------------------------------------------------------------------
+*                  Definition of Structures
+*-----------------------------------------------------------------------
+    DATA: l_sub_assy LIKE LINE OF mht_sub_assy.
+
+*-----------------------------------------------------------------------
+*                  Definition of Variables
+*-----------------------------------------------------------------------
+    DATA: lv_first_pass TYPE boolean VALUE abap_false.
+
+*-----------------------------------------------------------------------
+*                  Definition of Field Symbols
+*-----------------------------------------------------------------------
+    FIELD-SYMBOLS: <lfs_excel_line> LIKE LINE OF it_excel_file.
+
+*=======================================================================
+*               Program Main Routine
+*=======================================================================
+* Check header
+    READ TABLE it_excel_file INDEX 1 ASSIGNING <lfs_excel_line>.
+    IF sy-subrc = 0.
+      check_header( is_first_row = <lfs_excel_line> ).
+      "if header check returns an error, don't run other validations
+      IF gs_error_msg-error_type = gc_error.
+        RETURN.
+      ENDIF.
+* Get ER change items
+      get_er_change_items( ).
+*  Get all BOMs item data (Header and Sub-assemblies)
+      get_all_boms_itm_data( it_excel_file = it_excel_file ).
+* Assign header BOM to sub assembly table
+      MOVE-CORRESPONDING <lfs_excel_line> TO l_sub_assy.
+      INSERT l_sub_assy INTO TABLE mht_sub_assy.
+    ENDIF.
+
+*Loop through excel file and perform validity checks
+    CLEAR: gs_error_msg, mv_parent, ms_bom_key.
+    gs_error_msg-excel_line = 1.
+    gs_error_msg-error_type = gc_error.
+    LOOP AT it_excel_file ASSIGNING <lfs_excel_line>.
+      "Set error msg fields
+      gs_error_msg-excel_line = 1 + gs_error_msg-excel_line.
+      gs_error_msg-parent_mid = <lfs_excel_line>-parent_mid.
+      gs_error_msg-plant = <lfs_excel_line>-plant.
+      gs_error_msg-bom_usage = <lfs_excel_line>-bom_usage.
+      gs_error_msg-bom_alt = <lfs_excel_line>-alt_bom.
+
+      "Check Fields needed for creating redline
+      check_req_redline_fields( is_excel_line = <lfs_excel_line> ).
+
+      "Material Validations
+      IF <lfs_excel_line>-cmp_mid IS NOT INITIAL.
+        check_material_validations( is_excel_line = <lfs_excel_line> ).
+      ENDIF.
+
+      "DIR Validation Checks
+      check_dir_exists( is_excel_line = <lfs_excel_line> ).
+
+      "Validate Redline name
+      IF ms_bom_key-matnr <> <lfs_excel_line>-parent_mid
+        OR ms_bom_key-werks <> <lfs_excel_line>-plant
+        OR ms_bom_key-stlan <> <lfs_excel_line>-bom_usage
+        OR ms_bom_key-stlal <> <lfs_excel_line>-alt_bom.
+        check_redline_name( is_excel_line = <lfs_excel_line> ).
+        check_user_name( is_excel_line = <lfs_excel_line> ).
+      ENDIF.
+
+      "Validate ER change items
+      check_er_change_item( is_excel_line = <lfs_excel_line> ).
+
+      "Validate Sub Assemblies and Check for Recursion (mv_parent can change here) "BOM key can change here
+      CASE lv_first_pass.
+        WHEN abap_false.
+*          mv_parent = <lfs_excel_line>-parent_mid.
+          ms_bom_key-matnr = <lfs_excel_line>-parent_mid.
+          ms_bom_key-werks = <lfs_excel_line>-plant.
+          ms_bom_key-stlan = <lfs_excel_line>-bom_usage.
+          ms_bom_key-stlal = <lfs_excel_line>-alt_bom.
+          lv_first_pass = abap_true.
+        WHEN OTHERS.
+          validate_sub_assemblies( is_excel_line = <lfs_excel_line> ).
+      ENDCASE.
+
+      "Validate Bom Item Numbers
+      check_bom_item_numbers( is_excel_line = <lfs_excel_line> ).
+
+      "Validate Item categories
+      check_item_category( is_excel_line = <lfs_excel_line> ).
+    ENDLOOP.
+  ENDMETHOD.
