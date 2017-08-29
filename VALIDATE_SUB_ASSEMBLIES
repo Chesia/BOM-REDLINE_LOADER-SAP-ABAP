@@ -1,0 +1,82 @@
+  METHOD validate_sub_assemblies.
+*&---------------------------------------------------------------------*
+*& Method validate_sub_assemblies
+*&---------------------------------------------------------------------*
+*======================================================================*
+* Program Name    : ZCLBOM_UPLOAD_REDLINE                              *
+* Title           : Validate sub-assemblies                            *
+* Written By      : LeverX - LLittle                                   *
+* Creation Date   : 03.04.2016                                         *
+* Project         : Create BOM/Redline From Input File                 *
+* Transaction     : N/A                                                *
+*======================================================================*
+* P R O G R A M            D E S C R I P T I O N                       *
+*----------------------------------------------------------------------*
+* Validate sub-assemblies of BOM                                       *
+*======================================================================*
+* P R O G R A M            H I S T O R Y                               *
+* (Most recent on top)                                                 *
+*----------------------------------------------------------------------*
+* Date         Request #   Developer              Project or CR No.    *
+*----------------------------------------------------------------------*
+* 08/1/2017   ECDK980061   ZLLITTLE                           P15-002  *
+* Description                                                          *
+* Initial creation date                                                *
+*----------------------------------------------------------------------*
+**-----------------------------------------------------------------------
+**                  Definition of Structures
+**-----------------------------------------------------------------------
+    DATA: l_sub_assy LIKE LINE OF mht_sub_assy.
+
+**=======================================================================
+**               Program Main Routine
+**=======================================================================
+    CLEAR gs_error_msg-error_msg.
+    CASE is_excel_line-item_cat.
+      WHEN ms_redline_itm_type-text
+        OR ms_redline_itm_type-ref_text
+        OR ms_redline_itm_type-document.
+        RETURN.
+      WHEN OTHERS.
+        READ TABLE mht_sub_assy WITH TABLE KEY parent_mid = is_excel_line-parent_mid
+                                               plant      = is_excel_line-plant
+                                               bom_usage  = is_excel_line-bom_usage
+                                               alt_bom    = is_excel_line-alt_bom
+                                               cmp_mid    = is_excel_line-cmp_mid
+                                               TRANSPORTING NO FIELDS.
+
+* Check Sub Assembly
+        IF sy-subrc <> 0.
+          IF ms_bom_key-matnr <> is_excel_line-parent_mid
+            OR ms_bom_key-werks <> is_excel_line-plant
+            OR ms_bom_key-stlan <> is_excel_line-bom_usage
+            OR ms_bom_key-stlal <> is_excel_line-alt_bom.
+            READ TABLE mht_sub_assy WITH KEY cmp_mid = is_excel_line-parent_mid TRANSPORTING NO FIELDS.
+            IF sy-subrc = 0.
+              ms_bom_key-matnr = is_excel_line-parent_mid.
+              ms_bom_key-werks = is_excel_line-plant.
+              ms_bom_key-stlan = is_excel_line-bom_usage.
+              ms_bom_key-stlal = is_excel_line-alt_bom.
+            ELSE.
+              MESSAGE i057(zmcbom_msgs) INTO gs_error_msg-error_msg.
+              APPEND gs_error_msg TO gt_error_msgs.
+              RETURN.
+            ENDIF.
+          ENDIF.
+* Check recursion
+          READ TABLE mht_sub_assy WITH KEY parent_mid = is_excel_line-cmp_mid TRANSPORTING NO FIELDS.
+          IF sy-subrc = 0.
+            MESSAGE i058(zmcbom_msgs) INTO gs_error_msg-error_msg.
+            APPEND gs_error_msg TO gt_error_msgs.
+*            RETURN.
+          ENDIF.
+* Append to hash table
+          MOVE-CORRESPONDING is_excel_line TO l_sub_assy.
+          INSERT l_sub_assy INTO TABLE mht_sub_assy.
+        ELSE.
+*  Entry already exists
+*          MESSAGE i059(zmcbom_msgs) INTO gs_error_msg-error_msg.
+*          APPEND gs_error_msg TO gt_error_msgs.
+        ENDIF.
+    ENDCASE.
+  ENDMETHOD.
