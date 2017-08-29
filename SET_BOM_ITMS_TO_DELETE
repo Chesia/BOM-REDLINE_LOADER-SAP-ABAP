@@ -1,0 +1,126 @@
+  METHOD set_bom_itms_to_delete.
+*&---------------------------------------------------------------------*
+*& Method set_bom_itms_to_delete
+*&---------------------------------------------------------------------*
+*======================================================================*
+* Program Name    : ZCLBOM_UPLOAD_REDLINE                              *
+* Title           : Set redline items to delete                        *
+* Written By      : LeverX - LLittle                                   *
+* Creation Date   : 08.1.2017                                          *
+* Project         : Create BOM/Redline From Input File                 *
+* Transaction     : N/A                                                *
+*======================================================================*
+* P R O G R A M            D E S C R I P T I O N                       *
+*----------------------------------------------------------------------*
+* Set redline BOM items to delete (RED)                                *
+*======================================================================*
+* P R O G R A M            H I S T O R Y                               *
+* (Most recent on top)                                                 *
+*----------------------------------------------------------------------*
+* Date         Request #   Developer              Project or CR No.    *
+*----------------------------------------------------------------------*
+* 08/1/2017   ECDK980061   ZLLITTLE                           P15-002  *
+* Description                                                          *
+* Initial creation date                                                *
+*----------------------------------------------------------------------*
+*-----------------------------------------------------------------------
+*                  Definition of Structures
+*-----------------------------------------------------------------------
+    DATA: l_node_data  TYPE /plmb/s_redline_node_details,
+          l_fields     TYPE /plmb/s_redline_fields,
+          l_excel_line TYPE gty_node_data.
+
+*-----------------------------------------------------------------------
+*                  Definition of Variables
+*-----------------------------------------------------------------------
+    DATA: lv_matnr     TYPE makt-matnr,
+          lv_comp_desc TYPE makt-maktx.
+
+*-----------------------------------------------------------------------
+*                  Definition of Field Symbols
+*-----------------------------------------------------------------------
+    FIELD-SYMBOLS: <lfs_bom_itm_data> LIKE LINE OF mt_bom_itm_data.
+
+*=======================================================================
+*               Program Main Routine
+*=======================================================================
+*Set node type to changing
+    l_node_data-redline_type = MS_REDLINE_NODE_TYPE-delete.
+    LOOP AT mt_bom_itm_data ASSIGNING <lfs_bom_itm_data> WHERE parent_mid = mv_parent.
+      MOVE-CORRESPONDING <lfs_bom_itm_data> TO l_excel_line.
+      l_excel_line-item_cat = <lfs_bom_itm_data>-postp.
+      l_excel_line-text1 = <lfs_bom_itm_data>-potx1.
+      l_excel_line-text2 = <lfs_bom_itm_data>-potx2.
+*Set Key - this key comes from BOM
+      create_redline_node_key(
+        EXPORTING
+          is_excel_line   = l_excel_line
+        IMPORTING
+          ev_complete_key = l_node_data-node_key ).
+      CASE <lfs_bom_itm_data>-postp.
+*Set redline_data - Use information from BOM
+        WHEN ms_redline_itm_type-stock
+          OR ms_redline_itm_type-ref_mat
+          OR ms_redline_itm_type-ref_doc. "Materials
+          lv_matnr = <lfs_bom_itm_data>-cmp_mid.
+          CALL FUNCTION 'EAN150_MAKT_READ_DESCRIPTION'
+            EXPORTING
+              i_matnr = lv_matnr
+              i_langu = sy-langu
+            IMPORTING
+              e_maktx = lv_comp_desc.
+
+          l_fields-fieldname = 'COMPONENT_DESC'.
+          l_fields-old_value = lv_comp_desc.
+          INSERT l_fields INTO TABLE l_node_data-redline_data.
+
+          l_fields-fieldname = 'ITEM_MATERIAL'.
+          l_fields-old_value = <lfs_bom_itm_data>-cmp_mid.
+          INSERT l_fields INTO TABLE l_node_data-redline_data.
+
+        WHEN ms_redline_itm_type-document. "Documents
+          l_fields-fieldname = 'COMPONENT_DESC'.
+          INSERT l_fields INTO TABLE l_node_data-redline_data.
+
+          l_fields-fieldname = 'DOCUMENT_NUMBER'.
+          l_fields-old_value = <lfs_bom_itm_data>-doknr.
+          INSERT l_fields INTO TABLE l_node_data-redline_data.
+
+          l_fields-fieldname = 'DOCUMENT_PART'.
+          l_fields-old_value = <lfs_bom_itm_data>-dokar.
+          INSERT l_fields INTO TABLE l_node_data-redline_data.
+
+          l_fields-fieldname = 'DOCUMENT_TYPE'.
+          l_fields-old_value = <lfs_bom_itm_data>-doktl.
+          INSERT l_fields INTO TABLE l_node_data-redline_data.
+
+          l_fields-fieldname = 'DOCUMENT_VERSION'.
+          l_fields-old_value = <lfs_bom_itm_data>-dokvr.
+          INSERT l_fields INTO TABLE l_node_data-redline_data.
+
+        WHEN ms_redline_itm_type-text
+          OR ms_redline_itm_type-ref_text. "Text items
+          l_fields-fieldname = 'ITEM_TEXT1'.
+          l_fields-old_value = <lfs_bom_itm_data>-potx1.
+          INSERT l_fields INTO TABLE l_node_data-redline_data.
+
+          IF <lfs_bom_itm_data>-potx2 IS NOT INITIAL.
+            l_fields-fieldname = 'ITEM_TEXT2'.
+            l_fields-old_value = <lfs_bom_itm_data>-potx2.
+            INSERT l_fields INTO TABLE l_node_data-redline_data.
+          ENDIF.
+      ENDCASE.
+      l_fields-fieldname = 'ITEM_CAT'.
+      l_fields-old_value = <lfs_bom_itm_data>-postp.
+      INSERT l_fields INTO TABLE l_node_data-redline_data.
+
+      l_fields-fieldname = 'ITEM_NO'.
+      l_fields-old_value = <lfs_bom_itm_data>-posnr. "FROM BOM
+      INSERT l_fields INTO TABLE l_node_data-redline_data.
+
+* Add node to redline table
+      INSERT l_node_data INTO TABLE cs_redline_values-node_data.
+      DELETE mt_bom_itm_data.
+      CLEAR l_node_data-redline_data.
+    ENDLOOP.
+  ENDMETHOD.
