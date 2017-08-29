@@ -1,0 +1,89 @@
+  METHOD check_material_validations.
+*&---------------------------------------------------------------------*
+*& Method check_material_validations
+*&---------------------------------------------------------------------*
+*======================================================================*
+* Program Name    : ZCLBOM_UPLOAD_REDLINE                              *
+* Title           : Perform matieral validations                       *
+* Written By      : LeverX - LLittle                                   *
+* Creation Date   : 05.07.2017                                         *
+* Project         : Create BOM/Redline From Input File                 *
+* Transaction     : N/A                                                *
+*======================================================================*
+* P R O G R A M            D E S C R I P T I O N                       *
+*----------------------------------------------------------------------*
+* Check if materials in excel file exist in SAP system, if material    *
+* exist, check if it is of type HALB. Lastly Check if material is      *
+* extended to same plant in BOM.                                       *
+*======================================================================*
+* P R O G R A M            H I S T O R Y                               *
+* (Most recent on top)                                                 *
+*----------------------------------------------------------------------*
+* Date         Request #   Developer              Project or CR No.    *
+*----------------------------------------------------------------------*
+* 08/1/2017   ECDK980061   ZLLITTLE                           P15-002  *
+* Description                                                          *
+* Initial creation date                                                *
+*----------------------------------------------------------------------*
+*-----------------------------------------------------------------------
+*                  Definition of Structures
+*-----------------------------------------------------------------------
+    DATA: l_mat_detail   TYPE bapimatdoa,
+          l_exist_return TYPE bapireturn1,
+          l_return       TYPE bapireturn.
+
+*-----------------------------------------------------------------------
+*                  Definition of Variables
+*-----------------------------------------------------------------------
+    DATA: lv_mat_int TYPE bapimatall-material.
+
+*=======================================================================
+    CASE is_excel_line-item_cat.
+      WHEN ms_redline_itm_type-text
+        OR ms_redline_itm_type-ref_text.
+        RETURN.
+    ENDCASE.
+    CLEAR gs_error_msg-error_msg.
+    lv_mat_int = is_excel_line-cmp_mid.
+* Perform existence check on parent material
+    CALL FUNCTION 'BAPI_MATERIAL_EXISTENCECHECK'
+      EXPORTING
+        material = lv_mat_int
+      IMPORTING
+        return   = l_exist_return.
+* If material exists, check if it is of type HALB
+    IF l_exist_return-type = 'S'.
+      "Check material type
+      CALL FUNCTION 'BAPI_MATERIAL_GET_DETAIL'
+        EXPORTING
+          material              = lv_mat_int
+        IMPORTING
+          material_general_data = l_mat_detail.
+      IF l_mat_detail-matl_type <> gc_mat_type_halb.
+        MESSAGE i039(zmcbom_msgs) WITH is_excel_line-cmp_mid INTO gs_error_msg-error_msg.
+        gs_error_msg-error_type = gc_warning.
+      ENDIF.
+    ELSE.
+      MESSAGE i040(zmcbom_msgs) WITH is_excel_line-cmp_mid INTO gs_error_msg-error_msg.
+    ENDIF.
+    IF gs_error_msg-error_msg IS NOT INITIAL.
+      APPEND gs_error_msg TO gt_error_msgs.
+    ENDIF.
+* Check if material is extended to plant if header BOM in plant is not empty
+    IF g_mbom_hdata-plant IS NOT INITIAL.
+      CLEAR gs_error_msg-error_msg.
+      gs_error_msg-error_type = gc_error.
+      CALL FUNCTION 'BAPI_MATERIAL_GET_DETAIL'
+        EXPORTING
+          material = lv_mat_int
+          plant    = g_mbom_hdata-plant
+        IMPORTING
+          return   = l_return.
+      IF l_return-type <> 'S'.
+        MESSAGE i042(zmcbom_msgs) WITH is_excel_line-cmp_mid is_excel_line-plant INTO gs_error_msg-error_msg.
+        APPEND gs_error_msg TO gt_error_msgs.
+      ENDIF.
+    ENDIF.
+    "Reset error type to error
+    gs_error_msg-error_type = gc_error.
+  ENDMETHOD.
