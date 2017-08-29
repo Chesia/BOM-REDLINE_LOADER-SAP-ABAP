@@ -1,0 +1,30 @@
+ZCLBOM_UPLOAD_REDLINEV2
+Methods
+Method Name - Level - Visibility - Description:
+LOAD_FILE - Instnace Method - Public - Create Internal tables from Excel file
+GET_DIR_FILE - Instnace Method - Public - Get the originals associated with the DIR number passed in
+GET_MBOM_HEADER_DATA - Static Method - Public - Get header data from BOM
+SAVE_CHANGES - Instnace Method - Private - Save redline information
+CREATE_REDLINE - Instnace Method - Private - Create redline(s) with internal table made from excel file
+CREATE_REDLINE_NODE_KEY - Instnace Method - Private - Create redline node key - Used for redline node types C,D,N
+SET_DETAILS - Instnace Method - Private - Set header details, set fields and save changes
+SET_REDLINE_FIELDS - Instnace Method - Private - Set the redline fields categories and values
+SPLIT_LINE - Instnace Method - Private - Split excel file line into usable data
+VALIDATE_SUB_ASSEMBLIES - Instnace Method - Private - Validate Sub-Assemblies of BOM 
+VALIDITY_CHECKS - Instnace Method - Private - Perform validity checks on data from the excel file
+CHECK_FILE_HEADERS - Instnace Method - Private - Check Excel File column Headers
+CHECK_HEADER - Instnace Method - Private - Check if first row of excel file matches the selected BOM
+CHECK_MATERIAL_VALIDATIONS - Instnace Method - Private - Check if the materials in the excel file exist in SAP
+CHECK_DIR_EXISTS - Instnace Method - Private - Check if DIRs in the excel file exist in SAP
+CHECK_USER_NAME - Instnace Method - Private - Check if user name exists
+CHECK_REDLINE_NAME - Instnace Method - Private - Perform validsation checks on redline name
+CHECK_BOM_ITEM_NUMBERS - Instnace Method - Private - Perform BOM line Item number validation checks
+CHECK_ITEM_CATEGORY - Instnace Method - Private - Check the Item category
+CHECK_ER_CHANGE_ITEM - Instnace Method - Private - Verify BOM, Material, and DIR are change items on the ER
+GET_ER_CHANGE_ITEMS - Instnace Method - Private - Get ER change item(s) via the change number on BOM
+GET_ALL_BOMS_ITM_DATA - Instnace Method - Private - Get all BOMs (headder & sub-assy's) item data
+SET_BOM_ITMS_TO_DELETE - Instnace Method - Private - Set item for deletion in the redline
+SET_CHANGE_FIELDS - Instnace Method - Private - Set redline node fields of type change
+CHECK_REQ_REDLINE_FIELDS - Instnace Method - Private - Additional check on Redline fields to see if they are inital
+GET_TAB_FROM_EXCEL_FILE - Instnace Method - Private - Create an internal table from upload excel file
+SET_RESULT_FIELDS - Instnace Method - Private - Set result table fields (On WebDynpro Screen)
