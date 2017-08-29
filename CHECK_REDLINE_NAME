@@ -1,0 +1,82 @@
+  METHOD check_redline_name.
+*&---------------------------------------------------------------------*
+*& Method check_redline_name
+*&---------------------------------------------------------------------*
+*======================================================================*
+* Program Name    : ZCLBOM_UPLOAD_REDLINE                              *
+* Title           : Check Redline name                                 *
+* Written By      : LeverX - LLittle                                   *
+* Creation Date   : 08.01.2017                                         *
+* Project         : Create BOM/Redline From Input File                 *
+* Transaction     : N/A                                                *
+*======================================================================*
+* P R O G R A M            D E S C R I P T I O N                       *
+*----------------------------------------------------------------------*
+* Check Redline name does not already exist for the BOM                *
+*======================================================================*
+* P R O G R A M            H I S T O R Y                               *
+* (Most recent on top)                                                 *
+*----------------------------------------------------------------------*
+* Date         Request #   Developer              Project or CR No.    *
+*----------------------------------------------------------------------*
+* 08/01/2017   ECDK980061 LeverX - LLITTLE                     P15-002 *
+* Description                                                          *
+* Initial creation date                                                *
+*----------------------------------------------------------------------*
+*-----------------------------------------------------------------------
+*                  Definition of Structures
+*-----------------------------------------------------------------------
+    DATA:  l_redline_id TYPE /plmb/s_redline_id,
+           l_mbom_id    TYPE /plmb/s_mbom_id.
+
+*-----------------------------------------------------------------------
+*                  Definition of Objects
+*-----------------------------------------------------------------------
+    DATA: lo_redline_bo TYPE REF TO /plmi/cl_redline_bo.
+
+*-----------------------------------------------------------------------
+*                  Definition of Variabels
+*-----------------------------------------------------------------------
+    DATA: lv_failed TYPE /plmb/spi_failed_ind.
+
+*=======================================================================
+*               Program Main Routine
+*=======================================================================
+* Check if excel line has redline name
+    CLEAR gs_error_msg-error_msg.
+    IF is_excel_line-red_name IS INITIAL.
+      MESSAGE i044(zmcbom_msgs) INTO gs_error_msg-error_msg.
+      APPEND gs_error_msg TO gt_error_msgs.
+      RETURN.
+    ENDIF.
+* Check if the provided Redline name already exists in SAP for the same BOM
+    /plmi/cl_redline_bo=>get_instance(
+      IMPORTING
+        eo_bo = lo_redline_bo ).
+    "Set MBOM id - which will be used to create redline key
+    l_mbom_id-material = is_excel_line-parent_mid.
+    l_mbom_id-alternative_bom = is_excel_line-alt_bom.
+    l_mbom_id-plant = is_excel_line-plant.
+    l_mbom_id-bom_usage = is_excel_line-bom_usage.
+    "Convert MBOM ID to internal key (redline key)
+    /plmb/cl_gos_cnv_tools=>key_to_intern(
+      EXPORTING
+        iv_otype_name   = /plmb/if_otype_c=>gc_mbom
+        is_key          = l_mbom_id
+      IMPORTING
+        ev_internal_key = l_redline_id-redline_obj_key ).
+    "Redline object type will always be PLM_BOMMAT
+    l_redline_id-gos_object_type = /plmb/if_otype_c=>gc_mbom.
+    "Perform existence checks
+    l_redline_id-redline_name = is_excel_line-red_name.
+    lo_redline_bo->redline_existence_check(
+    EXPORTING
+      is_redline_id = l_redline_id    " Redline ID
+    IMPORTING
+      ev_failed     =   lv_failed  )." Failed
+    "Append error message to table if redline name already exists
+    IF lv_failed IS INITIAL.
+      MESSAGE i045(zmcbom_msgs) WITH is_excel_line-red_name INTO gs_error_msg-error_msg.
+      APPEND gs_error_msg TO gt_error_msgs.
+    ENDIF.
+  ENDMETHOD.
