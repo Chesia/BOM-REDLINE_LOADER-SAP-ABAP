@@ -1,0 +1,114 @@
+  METHOD set_change_fields.
+*&---------------------------------------------------------------------*
+*& Method set_change_fields
+*&---------------------------------------------------------------------*
+*======================================================================*
+* Program Name    : ZCLBOM_UPLOAD_REDLINE                              *
+* Title           : Set redline item to change item                    *
+* Written By      : LeverX - LLittle                                   *
+* Creation Date   : 08.1.2017                                          *
+* Project         : Create BOM/Redline From Input File                 *
+* Transaction     : N/A                                                *
+*======================================================================*
+* P R O G R A M            D E S C R I P T I O N                       *
+*----------------------------------------------------------------------*
+* Sets redline item to change (yellow)                                 *
+*======================================================================*
+* P R O G R A M            H I S T O R Y                               *
+* (Most recent on top)                                                 *
+*----------------------------------------------------------------------*
+* Date         Request #   Developer              Project or CR No.    *
+*----------------------------------------------------------------------*
+* 08/1/2017   ECDK980061   ZLLITTLE                           P15-002  *
+* Description                                                          *
+* Initial creation date                                                *
+*----------------------------------------------------------------------*
+*-----------------------------------------------------------------------
+*                  Definition of Structure
+*-----------------------------------------------------------------------
+    DATA:l_node_data TYPE /plmb/s_redline_node_details,
+         l_fields    TYPE /plmb/s_redline_fields.
+
+*-----------------------------------------------------------------------
+*                  Definition of Field Symbols
+*-----------------------------------------------------------------------
+    FIELD-SYMBOLS: <lfs_bom_itm_data> LIKE LINE OF mt_bom_itm_data.
+
+*=======================================================================
+*               Program Main Routine
+*=======================================================================
+*Set node type to changing
+    l_node_data-redline_type = ms_redline_node_type-change.
+*Set Key
+    "this key comes from BOM
+    create_redline_node_key(
+      EXPORTING
+        is_excel_line   = is_excel_line
+      IMPORTING
+        ev_complete_key =  l_node_data-node_key ).
+
+*Set redline_data - get item data from BOM
+    CASE is_excel_line-item_cat.
+      WHEN ms_redline_itm_type-stock. "Material
+        READ TABLE mt_bom_itm_data ASSIGNING <lfs_bom_itm_data>
+          WITH KEY parent_mid = is_excel_line-parent_mid
+                   cmp_mid    = is_excel_line-cmp_mid
+                   postp      = is_excel_line-item_cat.
+      WHEN ms_redline_itm_type-document. "Document
+        READ TABLE mt_bom_itm_data ASSIGNING <lfs_bom_itm_data>
+            WITH KEY parent_mid = is_excel_line-parent_mid
+                     dokar    = is_excel_line-dokar
+                     doknr    = is_excel_line-doknr
+                     dokvr    = is_excel_line-dokvr
+                     doktl    = is_excel_line-doktl.
+      WHEN ms_redline_itm_type-text. "Text item
+        READ TABLE mt_bom_itm_data ASSIGNING <lfs_bom_itm_data>
+            WITH KEY parent_mid = is_excel_line-parent_mid
+                     potx1      = is_excel_line-text1
+                     potx2      = is_excel_line-text2
+                     postp      = is_excel_line-item_cat.
+    ENDCASE.
+    IF sy-subrc = 0.
+      IF is_excel_line-cmp_qty IS NOT INITIAL.
+        l_fields-fieldname = 'COMP_QTY'.
+        l_fields-new_value = is_excel_line-cmp_qty.
+        l_fields-old_value = <lfs_bom_itm_data>-cmp_qty.
+        INSERT l_fields INTO TABLE l_node_data-redline_data.
+      ENDIF.
+
+      IF is_excel_line-cmp_uom IS NOT INITIAL
+        AND is_excel_line-cmp_uom <> <lfs_bom_itm_data>-meins.
+        l_fields-fieldname = 'COMP_UNIT'.
+        l_fields-new_value = is_excel_line-cmp_uom.
+        l_fields-old_value = <lfs_bom_itm_data>-meins.
+        INSERT l_fields INTO TABLE l_node_data-redline_data.
+      ENDIF.
+
+      IF is_excel_line-text1 IS NOT INITIAL.
+        l_fields-fieldname = 'ITEM_TEXT1'.
+        l_fields-new_value = is_excel_line-text1.
+        l_fields-old_value = <lfs_bom_itm_data>-potx1.
+        INSERT l_fields INTO TABLE l_node_data-redline_data.
+      ENDIF.
+
+      IF is_excel_line-text2 IS NOT INITIAL.
+        l_fields-fieldname = 'ITEM_TEXT2'.
+        l_fields-new_value = is_excel_line-text2.
+        l_fields-old_value = <lfs_bom_itm_data>-potx2.
+        INSERT l_fields INTO TABLE l_node_data-redline_data.
+      ENDIF.
+
+      l_fields-fieldname = 'ITEM_CAT'.
+      l_fields-new_value = <lfs_bom_itm_data>-postp .
+      l_fields-old_value = <lfs_bom_itm_data>-postp .
+      INSERT l_fields INTO TABLE l_node_data-redline_data.
+
+      l_fields-fieldname = 'ITEM_NO'.
+      l_fields-new_value = <lfs_bom_itm_data>-posnr.
+      l_fields-old_value = <lfs_bom_itm_data>-posnr.
+      INSERT l_fields INTO TABLE l_node_data-redline_data.
+
+* Add node to redline table
+      INSERT l_node_data INTO TABLE cs_redline_values-node_data.
+    ENDIF.
+  ENDMETHOD.
