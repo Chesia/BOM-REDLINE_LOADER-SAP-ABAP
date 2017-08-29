@@ -1,0 +1,43 @@
+  METHOD check_file_headers.
+*&---------------------------------------------------------------------*
+*& Method check_file_headers
+*&---------------------------------------------------------------------*
+*======================================================================*
+* Program Name    : ZCLBOM_UPLOAD_REDLINE                              *
+* Title           : Check File column headers                          *
+* Written By      : LeverX - LLittle                                   *
+* Creation Date   : 08.1.2017                                          *
+* Project         : Create BOM/Redline From Input File                 *
+* Transaction     : N/A                                                *
+*======================================================================*
+* P R O G R A M            D E S C R I P T I O N                       *
+*----------------------------------------------------------------------*
+* Check if the excel file is using the correct headers                 *
+*======================================================================*
+* P R O G R A M            H I S T O R Y                               *
+* (Most recent on top)                                                 *
+*----------------------------------------------------------------------*
+* Date         Request #   Developer              Project or CR No.    *
+*----------------------------------------------------------------------*
+* 08/1/2017   ECDK980061   ZLLITTLE                           P15-002  *
+* Description                                                          *
+* Initial creation date                                                *
+*----------------------------------------------------------------------*
+*-----------------------------------------------------------------------
+*                  Definition of Constants
+*-----------------------------------------------------------------------
+    CONSTANTS: lc_header_string TYPE string VALUE
+          'PARENT_MIDPLANTALTUSAGEHDR_QTYHDR_UOMITEMITEM_CATCMP_MIDCMP_QTYCMP_UOMDOCUMENTDOC_TYPEDOC_PARTDOC_VERSIONTEXT_1TEXT_2SORT_STRINGNAMEHDR_DESCRIPTIONCMP_RNOTEPIC'.
+
+*=======================================================================
+*               Program Main Routine
+*=======================================================================
+    REPLACE ALL OCCURRENCES OF '|' IN cs_excel_line WITH ``.
+    TRANSLATE cs_excel_line TO UPPER CASE.
+    IF cs_excel_line <> lc_header_string.
+      gs_error_msg-excel_line = 1.
+      MESSAGE i090(zmcbom_msgs) INTO gs_error_msg-error_msg.
+      gs_error_msg-error_type = gc_error.
+      APPEND gs_error_msg TO gt_error_msgs.
+    ENDIF.
+  ENDMETHOD.
