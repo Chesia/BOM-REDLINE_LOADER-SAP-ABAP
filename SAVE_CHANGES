@@ -1,0 +1,120 @@
+  METHOD save_changes.
+*&---------------------------------------------------------------------*
+*& Method save_changes
+*&---------------------------------------------------------------------*
+*======================================================================*
+* Program Name    : ZCLBOM_UPLOAD_REDLINE                              *
+* Title           : Save Redline                                        *
+* Written By      : LeverX - LLittle                                   *
+* Creation Date   : 08.1.2017                                          *
+* Project         : Create BOM/Redline From Input File                 *
+* Transaction     : N/A                                                *
+*======================================================================*
+* P R O G R A M            D E S C R I P T I O N                       *
+*----------------------------------------------------------------------*
+* Save Redline and attach it to the ER                                 *
+*======================================================================*
+* P R O G R A M            H I S T O R Y                               *
+* (Most recent on top)                                                 *
+*----------------------------------------------------------------------*
+* Date         Request #   Developer              Project or CR No.    *
+*----------------------------------------------------------------------*
+* 08/1/2017   ECDK980061   ZLLITTLE                           P15-002  *
+* Description                                                          *
+* Initial creation date                                                *
+*----------------------------------------------------------------------*
+*-----------------------------------------------------------------------
+*                  Definition of Tables
+*-----------------------------------------------------------------------
+    DATA: lt_message        TYPE /plmb/t_spi_msg,
+          lt_redline_values TYPE /plmb/t_redline_node_data,
+          lt_chg_itms       TYPE zdebom_chg_itm_tab.
+
+*-----------------------------------------------------------------------
+*                  Definition of Structures
+*-----------------------------------------------------------------------
+    DATA: l_chg_itm  LIKE LINE OF lt_chg_itms,
+          l_ecr_guid TYPE /plmb/s_ecr_object_id,
+          l_ecr_id   TYPE /plmb/s_ecr_id.
+
+*-----------------------------------------------------------------------
+*                  Definition of Objects
+*-----------------------------------------------------------------------
+    DATA: lo_ecr TYPE /plmb/t_spi_msg.
+
+*-----------------------------------------------------------------------
+*                  Definition of Variables
+*-----------------------------------------------------------------------
+    DATA: lv_save_failed  TYPE /plmb/spi_failed_ind,
+          lv_msg_severity TYPE /plmb/spi_msg_severity.
+
+*-----------------------------------------------------------------------
+*                  Definition of Constants
+*-----------------------------------------------------------------------
+    CONSTANTS: lc_redline TYPE string VALUE 'REDLINE_NAME'.
+
+*-----------------------------------------------------------------------
+*                  Definition of Field Symbols
+*-----------------------------------------------------------------------
+    FIELD-SYMBOLS: <lfs_chgitm_keys> LIKE LINE OF mt_chgitm_keys.
+
+*=======================================================================
+*               Program Main Routine
+*=======================================================================
+* Move redline values to table to save
+    INSERT cs_redline_values INTO TABLE lt_redline_values.
+    CLEAR cs_redline_values-node_data.
+    cv_node_key = 1.
+
+*Save Redline Information
+    co_redline->set_redline_node_data( it_redline_values = lt_redline_values ).
+
+    co_redline->save_redline(
+      IMPORTING
+        ev_save_failed  = lv_save_failed
+        ev_msg_severity = lv_msg_severity
+        et_messages     = lt_message ).
+    IF lv_save_failed IS INITIAL.
+      COMMIT WORK.
+      gs_error_msg-error_type = gc_success.
+      MESSAGE i061(zmcbom_msgs) WITH co_redline->ms_redline_id-redline_name INTO gs_error_msg-error_msg.
+
+      "ADD Redline to ER on the BOM
+*      READ TABLE mt_chgitm_keys  ASSIGNING <lfs_chgitm_keys> WITH KEY object_id = co_redline->ms_redline_id-redline_obj_key.
+*      IF sy-subrc = 0.
+*        l_chg_itm-internal_id = <lfs_chgitm_keys>-internal_id.
+*        l_chg_itm-attribute_value = co_redline->ms_redline_id-redline_name.
+*        l_chg_itm-attribute = lc_redline.
+*        APPEND l_chg_itm TO lt_chg_itms.
+*        l_ecr_guid-guid = ms_ecr_info-case_guid.
+*        "Update BOM redline field in ER
+*        zcler_assistance=>update_change_items(
+*          EXPORTING
+*            iv_ecr_guid = l_ecr_guid
+*            it_chg_itms = lt_chg_itms
+*          IMPORTING
+*            et_messages = lt_message ).
+*        IF lt_message IS NOT INITIAL.
+*          "Error
+*        ENDIF.
+*      ENDIF.
+
+*      l_ecr_id-ecr_id = ms_ecr_info-ecr_id.
+*      co_redline->set_engineering_record(
+*        EXPORTING
+*          is_ecr_id       = l_ecr_id
+*        IMPORTING
+*          ev_msg_severity = lv_msg_severity ).
+*      IF lv_msg_severity CA 'EAX'.
+*        "ERROR
+*      ENDIF.
+*      COMMIT WORK.
+    ELSE.
+      gs_error_msg-error_type = gc_error.
+      MESSAGE i062(zmcbom_msgs) WITH co_redline->ms_redline_id-redline_name INTO gs_error_msg-error_msg.
+    ENDIF.
+
+    co_redline->clean_up_after_save( iv_reason = /plmb/if_spi_c=>gs_c_cleanup_reason-buffer_refresh ).
+    APPEND gs_error_msg TO gt_error_msgs.
+    CLEAR: gs_error_msg-error_msg, gs_error_msg-error_type.
+  ENDMETHOD.
