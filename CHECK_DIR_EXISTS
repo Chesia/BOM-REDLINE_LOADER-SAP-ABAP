@@ -1,0 +1,96 @@
+  METHOD check_dir_exists.
+*&---------------------------------------------------------------------*
+*& Method check_dir_exists
+*&---------------------------------------------------------------------*
+*======================================================================*
+* Program Name    : ZCLBOM_UPLOAD_REDLINE                              *
+* Title           : Check DIR existence                                *
+* Written By      : LeverX - LLittle                                   *
+* Creation Date   : 08.1.2017                                          *
+* Project         : Create BOM/Redline From Input File                 *
+* Transaction     : N/A                                                *
+*======================================================================*
+* P R O G R A M            D E S C R I P T I O N                       *
+*----------------------------------------------------------------------*
+* Check if DIR exists, if DIR and CMP_MID exist in same
+* line, and if DIR contains full key
+*======================================================================*
+* P R O G R A M            H I S T O R Y                               *
+* (Most recent on top)                                                 *
+*----------------------------------------------------------------------*
+* Date         Request #   Developer              Project or CR No.    *
+*----------------------------------------------------------------------*
+* 08/1/2017   ECDK980061   ZLLITTLE                           P15-002  *
+* Description                                                          *
+* Initial creation date                                                *
+*----------------------------------------------------------------------*
+*-----------------------------------------------------------------------
+*                  Definition of Structures
+*-----------------------------------------------------------------------
+    DATA: ls_doc_aux TYPE bapi_doc_aux.
+
+*-----------------------------------------------------------------------
+*                  Definition of Variables
+*-----------------------------------------------------------------------
+    DATA: lv_dir_key TYPE string.
+
+*=======================================================================
+*               Program Main Routine
+*=======================================================================
+    CASE is_excel_line-item_cat.
+      WHEN ms_redline_itm_type-ref_text
+        OR ms_redline_itm_type-ref_mat
+        OR ms_redline_itm_type-ref_doc
+        OR ms_redline_itm_type-text.
+        RETURN.
+    ENDCASE.
+    IF is_excel_line-cmp_mid IS INITIAL.
+      IF is_excel_line-dokar IS NOT INITIAL
+      AND is_excel_line-doknr IS NOT INITIAL
+      AND is_excel_line-doktl IS NOT INITIAL
+      AND is_excel_line-dokvr IS NOT INITIAL.
+
+        ls_doc_aux-docnumber = is_excel_line-doknr.
+        ls_doc_aux-doctype = is_excel_line-dokar.
+        ls_doc_aux-docpart = is_excel_line-doktl.
+        ls_doc_aux-docversion = is_excel_line-dokvr.
+* Check if Document exists
+        CALL FUNCTION 'BAPI_DOCUMENT_EXISTENCECHECK'
+          EXPORTING
+            documenttype    = ls_doc_aux-doctype
+            documentnumber  = ls_doc_aux-docnumber
+            documentpart    = ls_doc_aux-docpart
+            documentversion = ls_doc_aux-docversion
+          IMPORTING
+            documentexists  = ls_doc_aux-flag.
+
+        IF ls_doc_aux-flag <> abap_true.
+          CONCATENATE is_excel_line-dokar is_excel_line-doknr is_excel_line-doktl is_excel_line-dokvr
+            INTO lv_dir_key SEPARATED BY '/'.
+          MESSAGE i043(zmcbom_msgs) WITH lv_dir_key INTO gs_error_msg-error_msg.
+          APPEND gs_error_msg TO gt_error_msgs.
+        ENDIF.
+      ELSE.
+        MESSAGE i086(zmcbom_msgs) INTO gs_error_msg-error_msg.
+        APPEND gs_error_msg TO gt_error_msgs.
+      ENDIF.
+    ELSE.
+* Check if CMD_MID and Doc data exist in same line
+      IF is_excel_line-dokar IS NOT INITIAL
+        OR is_excel_line-doknr IS NOT INITIAL
+        OR is_excel_line-doktl IS NOT INITIAL
+        OR is_excel_line-dokvr IS NOT INITIAL.
+        MESSAGE i053(zmcbom_msgs) INTO gs_error_msg-error_msg.
+        APPEND gs_error_msg TO gt_error_msgs.
+      ENDIF.
+    ENDIF.
+
+    IF is_excel_line-cmp_mid IS INITIAL
+      AND is_excel_line-dokar IS INITIAL
+      AND is_excel_line-doknr IS INITIAL
+      AND is_excel_line-doktl IS INITIAL
+      AND is_excel_line-dokvr IS INITIAL.
+      MESSAGE i053(zmcbom_msgs) INTO gs_error_msg-error_msg.
+      APPEND gs_error_msg TO gt_error_msgs.
+    ENDIF.
+  ENDMETHOD.
