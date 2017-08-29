@@ -1,0 +1,144 @@
+  METHOD check_bom_item_numbers.
+*&---------------------------------------------------------------------*
+*& Method check_bom_item_numbers
+*&---------------------------------------------------------------------*
+*======================================================================*
+* Program Name    : ZCLBOM_UPLOAD_REDLINE                              *
+* Title           : Perform checks on bom item numbers                 *
+* Written By      : LeverX - LLittle                                   *
+* Creation Date   : 08.1.2017                                          *
+* Project         : Create BOM/Redline From Input File                 *
+* Transaction     : N/A                                                *
+*======================================================================*
+* P R O G R A M            D E S C R I P T I O N                       *
+*----------------------------------------------------------------------*
+* Validate item number is between 1-9999 with no characters. Also check*
+* if item to parent and parent to cmp_mid combinations are unique      *
+*======================================================================*
+* P R O G R A M            H I S T O R Y                               *
+* (Most recent on top)                                                 *
+*----------------------------------------------------------------------*
+* Date         Request #   Developer              Project or CR No.    *
+*----------------------------------------------------------------------*
+* 08/1/2017   ECDK980061   ZLLITTLE                           P15-002  *
+* Description                                                          *
+* Initial creation date                                                *
+*----------------------------------------------------------------------*
+*-----------------------------------------------------------------------
+*                  Definition of Structures
+*-----------------------------------------------------------------------
+    DATA: ls_bom_line_item TYPE gty_bom_line_item.
+
+*-----------------------------------------------------------------------
+*                  Definition of variables
+*-----------------------------------------------------------------------
+    DATA: lv_item_num TYPE i,
+          lv_category TYPE string.
+
+**=======================================================================
+**               Program Main Routine
+**=======================================================================
+    CLEAR gs_error_msg-error_msg.
+    gs_error_msg-error_type = gc_error.
+* Check for alpha characters in item number
+    TRY.
+        lv_item_num = is_excel_line-item.
+      CATCH cx_root.
+        MESSAGE i046(zmcbom_msgs) INTO gs_error_msg-error_msg.
+        APPEND gs_error_msg TO gt_error_msgs.
+        RETURN.
+    ENDTRY.
+* check if item number is in range 0001-9999
+    IF lv_item_num IS INITIAL
+      OR lv_item_num < 0
+      OR lv_item_num > 9999.
+      MESSAGE i048(zmcbom_msgs) INTO gs_error_msg-error_msg.
+      APPEND gs_error_msg TO gt_error_msgs.
+      RETURN.
+    ENDIF.
+
+* Check ITEM<>PARENT_MID unique combination - returns error if not unique
+    MOVE-CORRESPONDING is_excel_line TO ls_bom_line_item.
+    READ TABLE ght_bom_line_items WITH KEY parent_mid = ls_bom_line_item-parent_mid
+                                           plant      = ls_bom_line_item-plant
+                                           bom_usage  = ls_bom_line_item-bom_usage
+                                           alt_bom    = ls_bom_line_item-alt_bom
+                                           item       = ls_bom_line_item-item
+                                           TRANSPORTING NO FIELDS.
+    IF sy-subrc = 0.
+      MESSAGE i050(zmcbom_msgs) INTO gs_error_msg-error_msg.
+      APPEND gs_error_msg TO gt_error_msgs.
+    ENDIF.
+* Check ITEM<>CMP_MID unique combination - returns error if not unique
+    CASE is_excel_line-item_cat.
+      WHEN ms_redline_itm_type-text
+        OR ms_redline_itm_type-ref_text.
+        sy-subrc = 1.
+      WHEN ms_redline_itm_type-document.
+        READ TABLE ght_bom_line_items WITH KEY parent_mid = ls_bom_line_item-parent_mid
+                                               plant      = ls_bom_line_item-plant
+                                               bom_usage  = ls_bom_line_item-bom_usage
+                                               alt_bom    = ls_bom_line_item-alt_bom
+                                               dokar      = ls_bom_line_item-dokar
+                                               doknr      = ls_bom_line_item-doknr
+                                               dokvr      = ls_bom_line_item-dokvr
+                                               doktl      = ls_bom_line_item-doktl
+                                               item       = ls_bom_line_item-item
+                                               TRANSPORTING NO FIELDS.
+      WHEN OTHERS.
+        READ TABLE ght_bom_line_items WITH KEY parent_mid = ls_bom_line_item-parent_mid
+                                               plant      = ls_bom_line_item-plant
+                                               bom_usage  = ls_bom_line_item-bom_usage
+                                               alt_bom    = ls_bom_line_item-alt_bom
+                                               cmp_mid    = ls_bom_line_item-cmp_mid
+                                               item       = ls_bom_line_item-item
+                                               TRANSPORTING NO FIELDS.
+    ENDCASE.
+    IF sy-subrc = 0.
+      CASE is_excel_line-item_cat.
+        WHEN ms_redline_itm_type-document.
+          lv_category = 'Document'.
+        WHEN OTHERS.
+          lv_category = 'Material'.
+      ENDCASE.
+      MESSAGE i095(zmcbom_msgs) WITH lv_category ls_bom_line_item-parent_mid INTO gs_error_msg-error_msg.
+      APPEND gs_error_msg TO gt_error_msgs.
+    ENDIF.
+
+* Check Parent_MID<>CMP_MID unique combinations - only returns warning if not unique
+    CASE is_excel_line-item_cat.
+      WHEN ms_redline_itm_type-text
+        OR ms_redline_itm_type-ref_text.
+        sy-subrc = 1.
+      WHEN ms_redline_itm_type-document.
+        READ TABLE ght_bom_line_items WITH KEY parent_mid = ls_bom_line_item-parent_mid
+                                               plant      = ls_bom_line_item-plant
+                                               bom_usage  = ls_bom_line_item-bom_usage
+                                               alt_bom    = ls_bom_line_item-alt_bom
+                                               dokar = ls_bom_line_item-dokar
+                                               doknr = ls_bom_line_item-doknr
+                                               dokvr = ls_bom_line_item-dokvr
+                                               doktl = ls_bom_line_item-doktl
+                                               TRANSPORTING NO FIELDS.
+      WHEN OTHERS.
+        READ TABLE ght_bom_line_items WITH KEY parent_mid = ls_bom_line_item-parent_mid
+                                               plant      = ls_bom_line_item-plant
+                                               bom_usage  = ls_bom_line_item-bom_usage
+                                               alt_bom    = ls_bom_line_item-alt_bom
+                                               cmp_mid    = ls_bom_line_item-cmp_mid
+                                               TRANSPORTING NO FIELDS.
+    ENDCASE.
+    IF sy-subrc = 0.
+      gs_error_msg-error_type = gc_warning.
+      CASE is_excel_line-item_cat.
+        WHEN ms_redline_itm_type-document.
+          MESSAGE i088(zmcbom_msgs) INTO gs_error_msg-error_msg.
+        WHEN OTHERS.
+          MESSAGE i049(zmcbom_msgs) INTO gs_error_msg-error_msg.
+      ENDCASE.
+      APPEND gs_error_msg TO gt_error_msgs.
+    ENDIF.
+
+    INSERT ls_bom_line_item INTO TABLE ght_bom_line_items.
+    gs_error_msg-error_type = gc_error.
+  ENDMETHOD.
